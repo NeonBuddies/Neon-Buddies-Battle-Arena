@@ -303,6 +303,10 @@
     if (st && st._testNow == null) st._testNow = st.startedAt;
     return st ? st._testNow : Date.now();
   }
+  function battleNow(bt) {
+    if (bt && bt.quick) return bt.quickNow || Date.now();
+    return manualNow(bt && bt.state);
+  }
   async function startBattle(forced) {
     ensureSel();
     var m = forced && forced.mode || mode();
@@ -336,7 +340,7 @@
         }
         if (online && started) {
         var foe = m === 'duel' ? b : (m === 'boss' ? bossView(bossToday()) : displayOf({ id: started.battle.foe.id, name: started.battle.foe.name }));
-        ui.battle = { manual: true, ranked: true, id: started.id, view: started.battle, a: a, b: foe, extra: extra, timers: [], speed: 1, done: false };
+        ui.battle = { manual: true, ranked: true, quick: false, id: started.id, view: started.battle, a: a, b: foe, extra: extra, timers: [], speed: 1, done: false };
         openManual(ui.battle);
         pollManual();
         }
@@ -349,7 +353,8 @@
         else { opp = randomChar(a.id); lvB = E.botLevel(diff.id, prog(a.id).level); opts.scaleB = diff.scale; }
         var state = E.createManualBattle(a, prog(a.id).level, opp, lvB, randomSeed(), opts);
         var foeL = m === 'duel' ? b : (m === 'boss' ? bossView(bossToday()) : opp);
-        ui.battle = { manual: true, ranked: false, state: state, view: E.manualView(state, manualNow(state)), a: a, b: foeL, extra: extra, diff: diff, timers: [], speed: 1, done: false };
+        var quick = !!(forced && forced.quick);
+        ui.battle = { manual: true, ranked: false, quick: quick, quickNow: quick ? Date.now() : 0, state: state, view: E.manualView(state, quick ? Date.now() : manualNow(state)), a: a, b: foeL, extra: extra, diff: diff, timers: [], speed: quick ? 2 : 1, done: false };
         openManual(ui.battle);
         localLoop();
       }
@@ -370,7 +375,7 @@
     setHp('B', v.foe.hp, v.foe.maxHp);
     $('#turn-label').textContent = v.playerActions + ' actions';
     var clock = window.__NB_TEST_CLOCK;
-    var now = bt.ranked ? (clock && clock.now != null ? clock.now : Date.now()) : manualNow(bt.state);
+    var now = bt.ranked ? (clock && clock.now != null ? clock.now : Date.now()) : battleNow(bt);
     var atk = $('#btn-attack'), sp = $('#btn-spell');
     if (atk) atk.disabled = !clock && now < v.you.atkReadyAt;
     if (sp) sp.disabled = !clock && now < v.you.spellReadyAt;
@@ -383,7 +388,7 @@
   function localLoop() {
     var bt = ui.battle;
     if (!bt || !bt.manual || bt.ranked || bt.done) return;
-    var now = manualNow(bt.state);
+    var now = bt.quick ? (bt.quickNow += 250) : manualNow(bt.state);
     var ticked = E.manualTick(bt.state, now);
     ticked._testNow = bt.state._testNow;
     var fin = E.manualFinish(ticked, now);
@@ -392,7 +397,7 @@
     bt.view = E.manualView(bt.state, now);
     paintManual();
     if (fin.ok && bt.state.status !== 'active') return commitManual(bt, null);
-    bt.timer = setTimeout(localLoop, window.__NB_TEST_CLOCK ? 40 : 500);
+    bt.timer = setTimeout(localLoop, window.__NB_TEST_CLOCK ? 40 : (bt.quick ? 100 : 500));
   }
   function pollManual() {
     var bt = ui.battle;
@@ -410,14 +415,14 @@
     if (!bt || !bt.manual || bt.done || bt.busy) return;
     if (bt.ranked) return rankedAct(action);
     var st = bt.state;
-    var now = manualNow(st);
+    var now = bt.quick ? bt.quickNow : manualNow(st);
     var ready = action === 'spell' ? st.A.spellReadyAt : st.A.atkReadyAt;
     if (window.__NB_TEST_CLOCK && now < ready) { st._testNow = ready; now = ready; }
     var r = E.manualAct(st, action, now, st.seq + 1);
     if (!r.ok) { if (r.reason === 'cooldown') toast('Temps de recharge pas encore écoulé.'); return; }
     r.state._testNow = window.__NB_TEST_CLOCK ? now + (window.__NB_TEST_CLOCK.stepMs || 5000) : st._testNow;
     bt.state = r.state;
-    bt.view = E.manualView(bt.state, manualNow(bt.state));
+    bt.view = E.manualView(bt.state, battleNow(bt));
     paintManual();
     if (bt.state.status !== 'active') commitManual(bt, null);
   }
@@ -1289,7 +1294,7 @@
     if ($('#btn-spell')) $('#btn-spell').addEventListener('click', function () { manualClick('spell'); });
     $('#btn-quick').addEventListener('click', function () {
       A.click(); ensureSel(); ui.sel.B = randomChar(ui.sel.A).id; save.settings.mode = 'duel';
-      history.replaceState(null, '', '#arene'); route(); startBattle();
+      history.replaceState(null, '', '#arene'); route(); startBattle({ quick: true });
     });
     var skipBtn = $('#btn-skip'); if (skipBtn) skipBtn.addEventListener('click', skipBattle);
     $('#gal-search').addEventListener('input', function (e) { ui.galSearch = e.target.value; renderGallery(); });
