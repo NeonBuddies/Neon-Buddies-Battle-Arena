@@ -999,11 +999,14 @@
       var level = Math.min(d.pass.levels, Math.floor((d.pass.progress.xp || 0) / d.pass.xpPerLevel)), pct = Math.min(100, (d.pass.progress.xp || 0) / (d.pass.levels * d.pass.xpPerLevel) * 100);
       var pass = '<div class="m-top"><span>Battle Pass · niveau ' + level + '/' + d.pass.levels + '</span><b>' + (d.pass.progress.xp || 0) + ' XP</b></div><div class="bar"><i style="width:' + pct.toFixed(0) + '%"></i></div><p class="muted small">Saison jusqu’au ' + new Date(d.seasonEnds).toLocaleDateString(L()) + '</p>';
       var weekly = d.weeklyMissions.map(function (m) { var done = m.progress >= m.target; return '<div class="rule"><span>' + esc(m.label) + ' · ' + m.progress + '/' + m.target + '</span>' + (m.claimed ? '<span class="status st-sent">Réclamée</span>' : (done ? '<button class="btn btn-small" data-feature-mission="' + esc(m.id) + '">Réclamer</button>' : '<span class="muted small">En cours</span>')) + '</div>'; }).join('');
+      var evoMap = {}; (d.evolutions || []).forEach(function (x) { evoMap[x.char_id] = x; });
+      var evoOptions = chars().slice(0, 20).map(function (c) { var x = evoMap[c.id], stage = x ? x.stage : 1, cost = stage === 1 ? '10 gems + 5 matériaux' : stage === 2 ? '25 gems + 10 matériaux' : 'maximum'; return '<option value="' + esc(c.id) + '">' + esc(c.name) + ' · stade ' + stage + '/3 · ' + cost + '</option>'; }).join('');
+      var evolution = '<h4>Évolution des personnages</h4><p class="muted small">Les gems gagnées ou achetées servent ici. Aucun paiement crypto n’est nécessaire pour évoluer.</p><div class="btn-row"><select class="input" id="feature-evo-char" style="max-width:260px">' + evoOptions + '</select><button class="btn btn-primary btn-small" data-feature-evolution>Évoluer</button></div>';
       var achievements = d.achievements.length ? d.achievements.map(function (a) { return '<span class="status st-approved">🏆 ' + esc(a.achievement_id) + '</span>'; }).join(' ') : '<span class="muted small">Aucun achievement débloqué.</span>';
       var inventory = d.inventory && d.inventory.length ? d.inventory.map(function (item) { var fromShop = String(item.source || '').indexOf('shop:') === 0, usable = item.item_type === 'skin' || item.item_type === 'character'; var action = usable ? '<button class="btn btn-small" data-use-item="' + esc(item.item_type) + '" data-use-id="' + esc(item.item_id) + '">' + (item.item_type === 'skin' ? 'Équiper' : 'Ouvrir') + '</button>' : ''; return '<div class="rule"><span>' + (fromShop ? '🛒 ' : '🎁 ') + esc(item.item_id) + '<small class="muted"> · ' + (fromShop ? 'Achat boutique' : esc(item.item_type)) + '</small></span><span><b>×' + item.quantity + '</b> ' + action + '</span></div>'; }).join('') : '<p class="muted small">Inventaire vide pour le moment.</p>';
       var equipped = d.equippedSkin ? '<p class="muted small">Skin équipé : <b>' + esc(d.equippedSkin) + '</b></p>' : '';
       if (inventoryEl) inventoryEl.innerHTML = inventory;
-      el.innerHTML = '<h3>Progression &amp; récompenses</h3><p><b>' + d.economy.gems + '</b> gems · <b>' + d.economy.materials + '</b> matériaux</p><h4>Calendrier quotidien</h4>' + days + '<h4>Battle Pass gratuit</h4>' + pass + '<h4>Missions hebdomadaires</h4>' + weekly + '<h4>Achievements</h4><p>' + achievements + '</p><p class="muted small">Les achats de gems servent aux évolutions. Les packs se transforment en personnages et les skins sont équipables.</p>' + equipped;
+      el.innerHTML = '<h3>Progression &amp; récompenses</h3><p><b>' + d.economy.gems + '</b> gems · <b>' + d.economy.materials + '</b> matériaux</p><h4>Calendrier quotidien</h4>' + days + '<h4>Battle Pass gratuit</h4>' + pass + '<h4>Missions hebdomadaires</h4>' + weekly + evolution + '<h4>Achievements</h4><p>' + achievements + '</p><p class="muted small">Les packs se transforment en personnages et les skins sont équipables.</p>' + equipped;
     } catch (e) { el.innerHTML = '<h3>Progression &amp; récompenses</h3><p class="err-txt small">' + esc(errMsg(e)) + '</p>'; if (inventoryEl) inventoryEl.innerHTML = '<p class="err-txt small">Impossible de charger l’inventaire.</p>'; }
   }
   async function renderRewards() {
@@ -1188,6 +1191,16 @@
         mission.disabled = true;
         try { var mr = await W.api('/api/features/missions/claim', { method: 'POST', body: { missionId: mission.getAttribute('data-feature-mission') } }); toast(mr.claimed ? 'Récompense hebdomadaire ajoutée.' : 'Mission déjà réclamée.'); }
         catch (err) { toast(errMsg(err)); }
+        renderRewards(); return;
+      }
+      var evolution = e.target.closest('[data-feature-evolution]');
+      if (evolution) {
+        evolution.disabled = true;
+        try {
+          var evoChar = $('#feature-evo-char');
+          var evo = await W.api('/api/features/evolution', { method: 'POST', body: { charId: evoChar && evoChar.value } });
+          toast('Évolution réussie : stade ' + evo.stage + '. Bonus attaque, défense et santé appliqués.');
+        } catch (err) { toast(errMsg(err)); }
         renderRewards(); return;
       }
       var order = e.target.closest('[data-test-order]');

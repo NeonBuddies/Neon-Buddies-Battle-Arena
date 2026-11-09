@@ -187,7 +187,7 @@ async function useInventoryItem(env, address, itemType, itemId) {
 }
 async function featureSnapshot(env, address) {
   const day = dayKey(), week = weekKey(), season = seasonKey();
-  const [eco, pass, inv, daily, ach, guild, weekly, profile] = await Promise.all([
+  const [eco, pass, inv, daily, ach, guild, weekly, profile, evolutions] = await Promise.all([
     ensureEconomy(env, address),
     env.DB.prepare('SELECT * FROM battle_pass_progress WHERE address = ?1 AND season = ?2').bind(address, season).first(),
     env.DB.prepare('SELECT item_type,item_id,quantity,source,updated_at FROM inventory WHERE address = ?1 ORDER BY updated_at DESC').bind(address).all(),
@@ -195,10 +195,11 @@ async function featureSnapshot(env, address) {
     env.DB.prepare('SELECT achievement_id,unlocked_at,claimed_at FROM achievements WHERE address = ?1 ORDER BY unlocked_at DESC').bind(address).all(),
     env.DB.prepare('SELECT g.id,g.name,g.slug,g.logo,gm.role FROM guild_members gm JOIN guilds g ON g.id=gm.guild_id WHERE gm.address=?1').bind(address).first(),
     env.DB.prepare('SELECT state_json FROM weekly_missions WHERE address=?1 AND week=?2').bind(address, week).first(),
-    env.DB.prepare('SELECT equipped_skin FROM player_profiles WHERE address=?1').bind(address).first()
+    env.DB.prepare('SELECT equipped_skin FROM player_profiles WHERE address=?1').bind(address).first(),
+    env.DB.prepare('SELECT char_id,stage,attack_bonus,defense_bonus,health_bonus FROM character_evolution WHERE address=?1').bind(address).all()
   ]);
   const weeklyState = weekly ? JSON.parse(weekly.state_json) : { progress: {}, claimed: {} };
-  return { day, dayIndex: dailyIndex(day), dayRewards: DAY_REWARDS, week, dailyMissions: DAILY_MISSIONS, weeklyMissions: WEEKLY_MISSIONS.map(m => ({ id:m.id, label:m.label, target:m.target, reward:m.reward, progress:weeklyState.progress[m.id] || 0, claimed:!!weeklyState.claimed[m.id] })), season, seasonEnds: seasonEnds(), pass: { levels: PASS_LEVELS, xpPerLevel: PASS_XP_PER_LEVEL, progress: pass || { xp: 0, premium: 0 } }, economy: { gems: eco.gems, materials: eco.materials }, inventory: inv.results, equippedSkin: profile?.equipped_skin || null, dailyClaims: daily.results.map(r => ({ day:r.day, dayIndex:r.day_index, reward:JSON.parse(r.reward_json), claimedAt:r.claimed_at })), achievements: ach.results, guild: guild || null };
+  return { day, dayIndex: dailyIndex(day), dayRewards: DAY_REWARDS, week, dailyMissions: DAILY_MISSIONS, weeklyMissions: WEEKLY_MISSIONS.map(m => ({ id:m.id, label:m.label, target:m.target, reward:m.reward, progress:weeklyState.progress[m.id] || 0, claimed:!!weeklyState.claimed[m.id] })), season, seasonEnds: seasonEnds(), pass: { levels: PASS_LEVELS, xpPerLevel: PASS_XP_PER_LEVEL, progress: pass || { xp: 0, premium: 0 } }, economy: { gems: eco.gems, materials: eco.materials }, inventory: inv.results, equippedSkin: profile?.equipped_skin || null, evolutions: evolutions.results, dailyClaims: daily.results.map(r => ({ day:r.day, dayIndex:r.day_index, reward:JSON.parse(r.reward_json), claimedAt:r.claimed_at })), achievements: ach.results, guild: guild || null };
 }
 async function createGuild(env, address, body) {
   const existing = await env.DB.prepare('SELECT guild_id FROM guild_members WHERE address=?1').bind(address).first();
