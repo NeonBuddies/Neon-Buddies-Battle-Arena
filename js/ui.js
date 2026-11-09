@@ -135,12 +135,12 @@
       return a.id < b.id ? -1 : 1;
     });
     $('#gal-count').textContent = list.length + ' / ' + chars().length;
-    $('#gal-grid').innerHTML = list.map(function (c) { return cardHTML(c); }).join('');
+    $('#gal-grid').innerHTML = list.map(function (c) { return cardHTML(c, { action: 'gallery' }); }).join('');
     $('#gal-empty').hidden = list.length > 0;
   }
 
   /* ---------- Fiche détaillée ---------- */
-  function openDetail(id) {
+  function openDetail(id, viewOnly) {
     var ch = byId(id); if (!ch) return;
     var p = prog(id), st = statsOf(ch);
     var traits = Object.keys(ch.traits || {}).map(function (k) { return '<span><em>' + esc(k) + ' :</em> ' + (k === 'famille' ? esc(ch.traits[k]) : '<span translate="no">' + esc(ch.traits[k]) + '</span>') + '</span>'; }).join('');
@@ -155,8 +155,8 @@
       '<div class="bar xpbar" style="margin-bottom:14px"><i style="width:' + xpPct.toFixed(1) + '%"></i></div>' +
       statsHTML(st) +
       '<p class="small muted"><span>Puissance ⚡' + E.power(st) + '</span> · <span>Sort :</span> <span translate="no">' + esc(E.characterSpell(ch).name) + '</span> — <span>' + esc(E.characterSpell(ch).blurb) + '</span> · <span>' + p.wins + ' victoires / ' + p.losses + ' défaites</span></p>' +
-      '<div class="btn-row"><button class="btn btn-primary btn-small" data-set="A" data-id="' + esc(id) + '">⚔ Mon combattant</button>' +
-      '<button class="btn btn-small" data-set="B" data-id="' + esc(id) + '">🎯 Adversaire</button></div></div></div>'
+      (viewOnly ? '' : '<div class="btn-row"><button class="btn btn-primary btn-small" data-set="A" data-id="' + esc(id) + '">⚔ Mon combattant</button>' +
+      '<button class="btn btn-small" data-set="B" data-id="' + esc(id) + '">🎯 Adversaire</button></div>') + '</div></div>'
     );
   }
   function openModal(html) {
@@ -1308,7 +1308,7 @@
       if (card) {
         var action = card.getAttribute('data-action') || 'detail', id = card.getAttribute('data-id');
         if (action === 'pick-A' || action === 'pick-B') { setSel(action.slice(-1), id); closeModal(); renderArenaSetup(); A.click(); return; }
-        openDetail(id); return;
+        openDetail(id, action === 'gallery'); return;
       }
       var lbRow = t.closest('#lb-body tr, .pod');
       if (lbRow) { openDetail(lbRow.getAttribute('data-id')); return; }
