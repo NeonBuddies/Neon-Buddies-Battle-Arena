@@ -12,7 +12,7 @@ Collection, stats, XP, combat déterministe, équilibrage, sauvegarde, missions,
 
 ### Worker + D1 local — `cd worker && npm test` — 21/21 + fenêtre de combat
 
-`wrangler dev --local`. RPC et Telegram **simulés**. `REAL_CLAIMS=1` seulement dans ce harness. `worker/wrangler.toml` reste à `"0"`.
+`wrangler dev --local`. RPC et Telegram **simulés**. `REAL_CLAIMS=1` seulement dans ce harness. `worker/wrangler.toml` reste à `REAL_CLAIMS = "0"` et `PAYMENTS_ENABLED = "0"`.
 
 Inclus : CORS, nonce, admin par signature, **combat manuel** (cooldown, action dupliquée, fin anticipée refusée, inactif sans points, double clôture), anti-triche, missions, classement, réclamation, plafond de points, webhook Telegram, fondateur sans bonus, solo / boss, défi 3 tentatives, tournoi et PvP **en attente** (pas de combat automatique à la place du joueur), import personnel 4,99 EUR avec paiement coupé, catalogue non achetable.
 

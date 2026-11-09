@@ -150,7 +150,11 @@ test('santé, configuration et CORS', async () => {
   const h = await api('/api/health');
   assert.equal(h.status, 200); assert.equal(h.data.chainId, 4663); assert.equal(h.data.admin, admin.address.toLowerCase());
   assert.equal(h.data.realClaims, true); assert.equal(h.data.audited, false);
-  assert.match(fs.readFileSync(path.join(root, 'wrangler.toml'), 'utf8'), /REAL_CLAIMS = "0"/);
+  assert.equal(h.data.manual, true); assert.equal(h.data.payments, false); assert.equal(h.data.checkout, false); assert.equal(h.data.schema, '0002');
+  const toml = fs.readFileSync(path.join(root, 'wrangler.toml'), 'utf8');
+  assert.match(toml, /REAL_CLAIMS = "0"/);
+  assert.match(toml, /PAYMENTS_ENABLED = "0"/);
+  assert.equal(/^\s*(HARNESS_FAST_FIGHT|FIGHT_MIN_MS)\s*=/m.test(toml), false);
   assert.equal(h.headers.get('access-control-allow-origin'), ORIGIN);
   const bad = await api('/api/health', { headers: { Origin: 'https://pirate.example' } });
   assert.equal(bad.headers.get('access-control-allow-origin'), null);
@@ -667,6 +671,7 @@ test('MODES : solo manuel, boss, défi 3 tentatives, tournoi et PvP en attente',
   assert.equal((await api('/api/pvp/status', { token: t1 })).data.status, 'pending');
   const shop = await api('/api/shop');
   assert.equal(shop.data.payments, 'off');
+  assert.equal(shop.data.checkout, false);
   assert.equal(shop.data.products.find(p => p.id === 'personal-import').priceEur, 4.99);
   assert.equal(shop.data.products.every(p => p.purchasable === false), true);
   const offer = await api('/api/starter', { token: t2 });

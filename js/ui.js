@@ -320,18 +320,28 @@
       if (rankedActive() && !online) toast('Les NFT ajoutés combattent hors classement (combat local).');
       var diff = E.DIFFICULTIES[(forced && forced.difficulty) || save.settings.difficulty] || E.DIFFICULTIES.normal;
       var extra = { mode: m };
+      if (online && W.backendStatus().probed && !W.backendStatus().manual) {
+        toast('Ce serveur en ligne n’a pas le combat manuel. Partie locale : pas de points classés.');
+        online = false;
+      }
       if (online) {
         var body = { fighterId: a.id, mode: m };
         if (m === 'duel') body.opponentId = b.id;
         if (m === 'solo') { body.difficulty = diff.id; body.pvpFallback = !!(forced && forced.pvpFallback); }
         var started;
         try { started = await W.api(m === 'boss' ? '/api/boss' : '/api/battle/start', { method: 'POST', body: body }); }
-        catch (e) { toast(errMsg(e)); return; }
+        catch (e) {
+          if (e.status === 404 || e.status === 410) { toast('Ce serveur en ligne n’a pas le combat manuel. Partie locale : pas de points classés.'); online = false; }
+          else { toast(errMsg(e)); return; }
+        }
+        if (online && started) {
         var foe = m === 'duel' ? b : (m === 'boss' ? bossView(bossToday()) : displayOf({ id: started.battle.foe.id, name: started.battle.foe.name }));
         ui.battle = { manual: true, ranked: true, id: started.id, view: started.battle, a: a, b: foe, extra: extra, timers: [], speed: 1, done: false };
         openManual(ui.battle);
         pollManual();
-      } else {
+        }
+      }
+      if (!online) {
         if (m === 'boss' && localBossLeft() <= 0) { toast('Tentatives contre le boss épuisées pour aujourd’hui. Reviens demain !'); return; }
         var opp, lvB, opts = { now: Date.now(), minMs: manualClockMs(), mode: m, difficulty: m === 'solo' ? diff.id : null };
         if (m === 'duel') { opp = b; lvB = prog(b.id).level; }
@@ -1281,6 +1291,7 @@
     var el = $('#backend-banner'); if (!el) return;
     var b = W.backendStatus(), msg;
     if (!b.configured || b.state !== 'online') msg = 'Serveur de récompenses hors ligne : jeu en mode local uniquement. Aucune réclamation NFT réelle, aucun combat classé envoyé.';
+    else if (b.probed && !b.manual) msg = 'Serveur joignable, ancienne version : le combat classé manuel n’est pas encore en ligne. Le jeu local reste disponible. Réclamations NFT réelles désactivées.';
     else if (!b.realClaims) msg = 'Serveur joignable. Réclamations NFT réelles désactivées : aucun NFT n’est réservé ni envoyé. Service non audité.';
     else msg = 'Serveur joignable. Réclamations réelles manuelles et non auditées : aucun transfert sans la signature du wallet administrateur.';
     el.hidden = false;

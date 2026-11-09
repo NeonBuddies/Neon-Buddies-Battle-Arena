@@ -30,7 +30,9 @@ CHECK_ONCHAIN = "1"
 # Réclamations NFT réelles : "0" tant que le parcours n'est pas revu en production. Le mode test reste possible.
 # Passer à "1" uniquement après le déploiement vérifié. Aucun transfert n'est émis par le Worker.
 REAL_CLAIMS = "0"
-# URL publique prévue du jeu (liens Telegram). Le Worker n'est pas encore déployé au moment de cette config.
+# Encaissement : "0". Aucun Paddle, PayPal ou crypto. Ne pas passer à "1" dans ce déploiement.
+PAYMENTS_ENABLED = "0"
+# URL publique du jeu (liens Telegram).
 PUBLIC_SITE_URL = "https://neonbuddies.github.io/Neon-Buddies-Battle-Arena/"
 # Notifications Telegram de victoires (1 = oui), au plus une toutes les VICTORY_NOTIFY_INTERVAL_SEC secondes
 TELEGRAM_NOTIFY_VICTORIES = "1"
@@ -40,7 +42,8 @@ STOCK_LOW_THRESHOLD = "2"
 PVP_TIMEOUT_SEC = "18"
 BOSS_ATTEMPTS_PER_DAY = "3"
 TOURNAMENTS_PER_DAY = "1"
-# URL prévue du Worker (non déployée / non vérifiée ici) :
+# Ne jamais activer l'horloge de test, ni raccourcir la durée minimale, dans ce fichier.
+# Worker visé (le build en ligne peut être plus ancien tant que ce commit n'est pas uploadé) :
 # https://neon-buddies-arena-api.neon-buddies-crypto-factory.workers.dev
 # REWARD_STOCK = '{"Common":[1,3,4],"Rare":[5],"Epic":[],"Legendary":[],"Special":[]}'
 

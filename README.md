@@ -9,7 +9,7 @@ Bilingue **FR / EN**. Thème noir / violet. Ordinateur et téléphones. Les fonc
 Ce dépôt **n’est pas audité** et **n’est pas déclaré prêt pour la production**.
 
 - Le Worker prévu n’est **pas déployé** depuis cette revue. L’URL visée est `https://neon-buddies-arena-api.neon-buddies-crypto-factory.workers.dev`. Un appel réel a répondu **HTTP 404**. Tant que `/api/health` ne renvoie pas `ok: true`, le jeu reste **explicitement hors ligne** : points dans le navigateur, **aucune réclamation NFT**, aucun combat classé envoyé.
-- `REAL_CLAIMS` vaut `"0"` dans `worker/wrangler.toml`. Même une fois le serveur joignable, **aucune réclamation réelle n’est préparée** tant que cette variable n’est pas passée à `"1"` hors de ce dépôt. Le mode test ne déplace aucun NFT. Le fondateur n’a aucun bonus de jeu ; ses réclamations réelles restent refusées parce qu’il détient déjà le stock.
+- `REAL_CLAIMS` vaut `"0"` et `PAYMENTS_ENABLED` vaut `"0"` dans `worker/wrangler.toml`. Aucune réclamation réelle n’est préparée, et aucun paiement (Paddle, PayPal ou crypto) n’est encaissé. Le mode test ne déplace aucun NFT. Le fondateur n’a aucun bonus de jeu ; ses réclamations réelles restent refusées parce qu’il détient déjà le stock.
 - **Aucune transaction blockchain n’est envoyée par le Worker ni par les scripts de ce dépôt.** Un transfert réel, s’il est un jour réactivé, ne part que si l’administrateur le signe lui-même dans son wallet (`safeTransferFrom`, valeur 0, contrat NB2 uniquement).
 - Le contrat NFT `0x3aFaFa532c6Ea72ad5533A5aeEb409276ACC0aFc` (chaîne 4663) **n’est pas modifié**. Aucune approbation OpenSea n’est demandée.
 - Aucune clé privée, aucun jeton Telegram et aucun fichier `.dev.vars` ne sont dans le dépôt.

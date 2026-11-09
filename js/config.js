@@ -1,7 +1,6 @@
 /* Configuration publique du jeu (aucun secret ici).
-   API_URL : Worker prévu, PAS ENCORE DÉPLOYÉ NI VÉRIFIÉ.
-   Tant que /api/health ne répond pas ok, l'interface reste en mode local :
-   aucune réclamation NFT, aucun combat classé envoyé. */
+   API_URL pointe vers le Worker existant. /api/health.manual === true signifie
+   que CE build (combat manuel) est en ligne. Sinon le jeu classé reste local. */
 window.NB_CONFIG = {
   API_URL: 'https://neon-buddies-arena-api.neon-buddies-crypto-factory.workers.dev',
   CHAIN_ID: 4663,

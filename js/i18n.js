@@ -394,6 +394,8 @@
     "· réclamations réelles désactivées": "· real claims disabled",
     "Serveur de récompenses hors ligne : jeu en mode local uniquement. Aucune réclamation NFT réelle, aucun combat classé envoyé.": "Rewards server offline: local game only. No real NFT claim and no ranked fight is sent.",
     "Serveur joignable. Réclamations NFT réelles désactivées : aucun NFT n’est réservé ni envoyé. Service non audité.": "Server reachable. Real NFT claims are disabled: no NFT is reserved or sent. Service not audited.",
+    "Serveur joignable, ancienne version : le combat classé manuel n’est pas encore en ligne. Le jeu local reste disponible. Réclamations NFT réelles désactivées.": "Server reachable, previous version: ranked manual combat is not online yet. Local play remains available. Real NFT claims are disabled.",
+    "Ce serveur en ligne n’a pas le combat manuel. Partie locale : pas de points classés.": "This online server does not have manual combat. Local match: no ranked points.",
     "Serveur joignable. Réclamations réelles manuelles et non auditées : aucun transfert sans la signature du wallet administrateur.": "Server reachable. Real claims are manual and not audited: no transfer without the administrator wallet signature.",
     "Serveur de récompenses injoignable. Jeu local uniquement : aucune réclamation NFT, aucun combat classé.": "Rewards server unreachable. Local game only: no NFT claim, no ranked fight.",
     "Serveur de récompenses non configuré. Jeu local uniquement : aucune réclamation NFT.": "Rewards server not configured. Local game only: no NFT claim.",

@@ -7,7 +7,7 @@
   var listeners = [];
   var state = { address: null, chainId: null, provider: null, providerName: '' };
   var discovered = [];
-  var backend = { state: 'offline', realClaims: false };
+  var backend = { state: 'offline', realClaims: false, manual: false, probed: false };
 
   // EIP-6963 : découverte de plusieurs wallets installés
   root.addEventListener && root.addEventListener('eip6963:announceProvider', function (e) {
@@ -153,16 +153,16 @@
     try { localStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
   }
   function apiEnabled() { return !!CFG.API_URL && backend.state === 'online'; }
-  function backendStatus() { return { configured: !!CFG.API_URL, state: backend.state, realClaims: !!backend.realClaims, url: CFG.API_URL || '' }; }
+  function backendStatus() { return { configured: !!CFG.API_URL, state: backend.state, realClaims: !!backend.realClaims, manual: backend.manual === true, probed: !!backend.probed, url: CFG.API_URL || '' }; }
   async function probeBackend() {
-    if (!CFG.API_URL) { backend.state = 'offline'; backend.realClaims = false; emit(); return backend; }
+    if (!CFG.API_URL) { backend.state = 'offline'; backend.realClaims = false; backend.manual = false; backend.probed = true; emit(); return backend; }
     var ctrl = typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined;
     try {
       var r = await fetch(CFG.API_URL.replace(/\/+$/, '') + '/api/health', { method: 'GET', cache: 'no-store', signal: ctrl });
       var j = await r.json();
-      if (r.ok && j && j.ok === true) { backend.state = 'online'; backend.realClaims = j.realClaims === true; }
-      else { backend.state = 'offline'; backend.realClaims = false; }
-    } catch (e) { backend.state = 'offline'; backend.realClaims = false; }
+      if (r.ok && j && j.ok === true) { backend.state = 'online'; backend.realClaims = j.realClaims === true; backend.manual = j.manual === true; backend.probed = true; }
+      else { backend.state = 'offline'; backend.realClaims = false; backend.manual = false; backend.probed = true; }
+    } catch (e) { backend.state = 'offline'; backend.realClaims = false; backend.manual = false; backend.probed = true; }
     emit();
     return backend;
   }

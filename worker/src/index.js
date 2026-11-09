@@ -30,6 +30,7 @@ function cfg(env) {
     onchain: env.CHECK_ONCHAIN !== '0',
     erc1271: env.ERC1271 !== '0',
     realClaims: String(env.REAL_CLAIMS || '') === '1',
+    paymentsEnabled: String(env.PAYMENTS_ENABLED || '0') === '1',
     tgBase: env.TELEGRAM_API_BASE || 'https://api.telegram.org'
   };
 }
@@ -781,7 +782,7 @@ async function route(req, env, ctx) {
 
   if (m === 'GET' && path === '/api/health') {
     await rateLimit(env, 'health:' + ip, 120, 60);
-    return { ok: true, chainId: c.chainId, contract: c.contract, admin: c.admin, day: E.dayKey(), realClaims: c.realClaims, audited: false };
+    return { ok: true, chainId: c.chainId, contract: c.contract, admin: c.admin, day: E.dayKey(), realClaims: c.realClaims, payments: false, checkout: false, manual: true, schema: '0002', audited: false };
   }
 
   if (m === 'GET' && path === '/api/config') {
@@ -870,7 +871,8 @@ async function route(req, env, ctx) {
 
   if (m === 'GET' && path === '/api/shop') {
     await rateLimit(env, 'shop:' + ip, 60, 60);
-    return live.shop();
+    const shop = live.shop();
+    return Object.assign({}, shop, { payments: 'off', checkout: false, products: shop.products.map(p => Object.assign({}, p, { purchasable: false })) });
   }
   if (m === 'GET' && path === '/api/starter') return live.starter(env, await auth(req, env));
   if (m === 'POST' && path === '/api/starter') return live.chooseStarter(req, env, await auth(req, env));
