@@ -53,13 +53,15 @@ Node, `performance.now`, après les changements de ce passage :
 
 `npm test` à la racine : 20/20 (moteur inchangé sur le combat, les sorts et les tentatives).
 
-`cd worker && npm test` : **26/26** en un seul passage (environ 67 s). Cela couvre les tests V1, 4 contrôles purs V2, la migration 0002 rejouée, et le scénario V2 (deux comptes, un troisième non autorisé, autre personnage, double acceptation, raid plafonné, un seul crédit, fondateur sans éligibilité NFT, tournoi vide, BOT, déconnexion) en 20,7 s de temps mur. Ce temps n’est pas le CPU Cloudflare. La phrase d’attente sur l’import d’image a été ajustée après ce passage ; elle ne change pas le serveur.
+`cd worker && npm test` : **27/27** en un seul passage (environ 74 s). Cela couvre les tests V1, 4 contrôles purs V2, les migrations 0002 et 0003 rejouées, le scénario communautaire, et la boutique contre un faux PayPal. Ce temps n’est pas le CPU Cloudflare.
 
 La tête V1 intégrée est `eda20250`. Les trois départs, le sort par personnage, les 2 min 30, et les trois tentatives par défi ne sont pas dans ce commit : ils restent sur la PR V1. Pas de cœurs, pas de verrou global, pas de paiement pour l’import d’image.
 
 CPU Cloudflare rapporté pour le déploiement de `eda2025`, 70 requêtes, 0 échec : combats chauds 5–7 ms, auth chaude 5–10 ms, auth froide 35 ms, tournoi 25 ms, PvP 39 ms, 7/70 au-dessus de 10 ms. Offre 10 ms non stabilisée. Plan d’abonnement non revérifié. Aucun redéploiement depuis cette branche.
 
 Non testé : Android réel, MetaMask réelle, transfert on-chain, base D1 de production, cron déployé.
+
+Boutique : le harness local (`PAYMENTS_ENABLED=1` seulement dans le test, faux serveur PayPal) a vérifié le prix serveur, le refus d’un montant client, l’origine, deux captures simultanées, une seule possession, le plafond configuré sans le déclarer confirmé, un montant sandbox incorrect, un webhook de remboursement vérifié, le rejeu du webhook, une signature refusée, un débit de points cosmétiques qui ne touche pas au classement, et l’import fondateur sans paiement. `wrangler.toml` reste à `PAYMENTS_ENABLED = "0"`. Aucun appel au vrai PayPal, aucun encaissement. L’historique à l’écran n’a pas été rejoué dans un navigateur après ce passage.
 
 ## Non fait — ne pas le compter comme un succès
 

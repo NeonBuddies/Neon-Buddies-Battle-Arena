@@ -909,6 +909,10 @@ async function route(req, env, ctx) {
       return { id, test: !!test };
     }
   }
+  if (path.startsWith('/api/v2/shop') || path === '/api/paypal/webhook') {
+    const { shopRoute } = await import('./shop.js');
+    return shopRoute(req, env, ctx, url, { auth, rateLimit, body, getPlayer, isFounder, ownerOf, num, short });
+  }
   if (path.startsWith('/api/v2') || path.startsWith('/api/admin/v2')) {
     const { communityRoute } = await import('./community.js');
     return communityRoute(req, env, ctx, url, { auth, rateLimit, body, getPlayer, isFounder, ownerOf, num, short });

@@ -33,6 +33,33 @@ const server = http.createServer((req, res) => {
   req.on('data', c => data += c);
   req.on('end', () => {
     const j = data ? JSON.parse(data) : {};
+    if (req.url.startsWith('/v1/notifications/verify-webhook-signature')) {
+      res.end(JSON.stringify({ verification_status: mock.paypalVerify || 'SUCCESS' }));
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/v2/checkout/orders') {
+      mock.paypalSeq = (mock.paypalSeq || 0) + 1;
+      const id = 'TESTORDER' + mock.paypalSeq;
+      mock.paypalOrders = mock.paypalOrders || {};
+      mock.paypalOrders[id] = j;
+      res.end(JSON.stringify({ id, status: 'CREATED' }));
+      return;
+    }
+    const cap = req.url.match(/^\/v2\/checkout\/orders\/([^/]+)\/capture$/);
+    if (cap && req.method === 'POST') {
+      const order = (mock.paypalOrders || {})[cap[1]];
+      if (!order) { res.statusCode = 404; res.end('{}'); return; }
+      const amount = mock.paypalBadAmount ? { currency_code: 'EUR', value: '0.01' } : order.purchase_units[0].amount;
+      res.end(JSON.stringify({
+        id: cap[1], status: 'COMPLETED',
+        purchase_units: [{
+          reference_id: order.purchase_units[0].reference_id,
+          payee: { merchant_id: 'MERCHANTTEST' },
+          payments: { captures: [{ id: 'CAP-' + cap[1], status: 'COMPLETED', amount, custom_id: order.purchase_units[0].custom_id }] }
+        }]
+      }));
+      return;
+    }
     if (req.url.startsWith('/bot')) {
       const [, tok, method] = req.url.match(/^\/bot([^/]+)\/(\w+)/);
       mock.tg.push({ tok, method, body: j });
@@ -85,13 +112,16 @@ test.before(async () => {
   persist = fs.mkdtempSync(path.join(root, '.wrangler', 'test-'));
   execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${persist} --file schema.sql`, { cwd: root, stdio: 'ignore' });
   execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${persist} --file migrations/0002_community_v2.sql`, { cwd: root, stdio: 'ignore' });
+  execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${persist} --file migrations/0003_cosmetics.sql`, { cwd: root, stdio: 'ignore' });
   const vars = {
     ADMIN_ADDRESS: admin.address, CHAIN_ID: '4663', RPC_URL: base + '/rpc', NFT_CONTRACT: CONTRACT,
     ALLOWED_ORIGINS: ORIGIN, FIGHT_MIN_INTERVAL_MS: '150', MAX_FIGHTS_PER_DAY: '300', DAILY_POINTS_CAP: '3000', CHECK_ONCHAIN: '1',
     REWARD_STOCK: JSON.stringify({ Common: [1, 3], Rare: [5], Epic: [7], Legendary: [2], Special: [12] }),
     TELEGRAM_API_BASE: base, TELEGRAM_BOT_TOKEN: TG_TOKEN, TELEGRAM_ADMIN_CHAT_ID: ADMIN_CHAT, TELEGRAM_WEBHOOK_SECRET: TG_SECRET,
     TELEGRAM_NOTIFY_VICTORIES: '1', VICTORY_NOTIFY_INTERVAL_SEC: '600', STOCK_LOW_THRESHOLD: '1', PVP_TIMEOUT_SEC: '3', BOSS_ATTEMPTS_PER_DAY: '3',
-    REAL_CLAIMS: '1', V2_SCHEDULER: '1',
+    REAL_CLAIMS: '1', V2_SCHEDULER: '1', PAYMENTS_ENABLED: '1',
+    PAYPAL_API_BASE: base ? base : 'http://127.0.0.1', PAYPAL_SANDBOX_ACCESS_TOKEN: 'SANDBOX-JETON-FICTIF',
+    PAYPAL_SANDBOX_WEBHOOK_ID: 'WH-TEST', PAYPAL_MERCHANT_ID: 'MERCHANTTEST', COSMETIC_DAILY_PURCHASE_LIMIT: '2',
     PUBLIC_SITE_URL: 'https://exemple.github.io/neon-buddies-battle-arena/'
   };
   const args = ['wrangler', 'dev', '--local', '--port', String(PORT), '--ip', '127.0.0.1', '--persist-to', persist, '--show-interactive-dev-session=false'];
@@ -669,6 +699,8 @@ test('migration 0002 rejouée sans erreur', () => {
   execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --file schema.sql`, { cwd: root, stdio: 'ignore' });
   execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --file migrations/0002_community_v2.sql`, { cwd: root, stdio: 'ignore' });
   execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --file migrations/0002_community_v2.sql`, { cwd: root, stdio: 'ignore' });
+  execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --file migrations/0003_cosmetics.sql`, { cwd: root, stdio: 'ignore' });
+  execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --file migrations/0003_cosmetics.sql`, { cwd: root, stdio: 'ignore' });
   const players = execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --json --command "SELECT name FROM sqlite_master WHERE name='players'"`, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
   assert.match(players, /players/);
   fs.rmSync(again, { recursive: true, force: true });
@@ -893,4 +925,86 @@ test('V2 : accès, guilde, chat, amis, raid, quêtes, tournoi live', async () =>
   const ranks = await api('/api/v2/ranks?kind=player&span=all');
   assert.equal(ranks.status, 200);
   assert.ok(ranks.data.rows.some(r => r.address === a));
+});
+
+test('boutique sandbox : prix serveur, une livraison, remboursement, points de classement intacts', async () => {
+  const buyer = Wallet.createRandom();
+  const token = await loginIp(buyer, '10.3.0.8');
+  const address = buyer.address.toLowerCase();
+  const before = await api('/api/me', { token });
+  const shop = await api('/api/v2/shop', { token });
+  assert.equal(shop.status, 200);
+  assert.equal(shop.data.paymentsEnabled, true);
+  assert.equal(shop.data.sandboxOnly, true);
+  assert.equal(shop.data.purchaseLimitConfirmed, false);
+  assert.equal(shop.data.purchaseLimit, 2);
+  assert.equal(shop.data.challenge.status, 'pending');
+  assert.equal(shop.data.challenge.countsAutomaticFights, false);
+  assert.equal(shop.data.challenge.rewardPoints, null);
+  assert.ok(shop.data.catalog.every(item => item.powerBonus === false && item.rewardOddsBonus === false));
+  const priced = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'frame-neon', amount: '0.01', currency: 'USD' } });
+  assert.equal(priced.status, 400);
+  const evil = await api('/api/v2/shop/orders', { method: 'POST', token, headers: { Origin: 'https://pirate.example' }, body: { sku: 'frame-neon' } });
+  assert.equal(evil.status, 403);
+  const created = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'frame-neon' } });
+  assert.equal(created.status, 200, JSON.stringify(created.data));
+  assert.equal(created.data.amount, '0.99');
+  assert.equal(created.data.currency, 'EUR');
+  const caps = await Promise.all([1, 2].map(() => api('/api/v2/shop/orders/capture', { method: 'POST', token, body: { id: created.data.id } })));
+  assert.ok(caps.some(x => x.status === 200 && x.data.status === 'delivered'));
+  assert.ok(caps.every(x => x.status === 200));
+  const grants = await db.prepare('SELECT COUNT(*) AS n FROM cosmetic_grants WHERE address = ? AND sku = ? AND revoked_at IS NULL').bind(address, 'frame-neon').first();
+  assert.equal(grants.n, 1);
+  const again = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'frame-neon' } });
+  assert.equal(again.status, 409);
+  const second = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'title-runner' } });
+  assert.equal(second.status, 200, JSON.stringify(second.data));
+  const third = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'fx-victory' } });
+  assert.equal(third.status, 429);
+  mock.paypalBadAmount = true;
+  const badOrder = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'theme-arena' } });
+  // La limite configurée est 2 commandes non échouées : title-runner est la 2e, theme-arena doit déjà être refusée.
+  assert.equal(badOrder.status, 429);
+  mock.paypalBadAmount = false;
+  await db.prepare("UPDATE shop_orders SET status = 'failed' WHERE id = ?").bind(second.data.id).run();
+  const mismatch = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'theme-arena' } });
+  assert.equal(mismatch.status, 200, JSON.stringify(mismatch.data));
+  mock.paypalBadAmount = true;
+  const refused = await api('/api/v2/shop/orders/capture', { method: 'POST', token, body: { id: mismatch.data.id } });
+  assert.equal(refused.status, 409);
+  mock.paypalBadAmount = false;
+  const ownedAfterBad = await db.prepare('SELECT COUNT(*) AS n FROM cosmetic_grants WHERE address = ? AND sku = ? AND revoked_at IS NULL').bind(address, 'theme-arena').first();
+  assert.equal(ownedAfterBad.n, 0);
+  const event = {
+    id: 'WH-1',
+    event_type: 'PAYMENT.CAPTURE.REFUNDED',
+    resource: { id: 'CAP-' + created.data.paypalOrderId }
+  };
+  const hook = await api('/api/paypal/webhook', { method: 'POST', body: event, headers: { 'paypal-auth-algo': 'SHA256withRSA', 'paypal-cert-url': 'https://api.sandbox.paypal.com/cert', 'paypal-transmission-id': 't1', 'paypal-transmission-sig': 'sig', 'paypal-transmission-time': '2026-11-09T00:00:00Z' } });
+  assert.equal(hook.status, 200, JSON.stringify(hook.data));
+  const revoked = await db.prepare('SELECT revoked_at FROM cosmetic_grants WHERE address = ? AND sku = ?').bind(address, 'frame-neon').first();
+  assert.ok(revoked && revoked.revoked_at);
+  const replay = await api('/api/paypal/webhook', { method: 'POST', body: event, headers: { 'paypal-transmission-id': 't1' } });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.data.duplicate, true);
+  mock.paypalVerify = 'FAILURE';
+  const forged = await api('/api/paypal/webhook', { method: 'POST', body: { id: 'WH-2', event_type: 'PAYMENT.CAPTURE.COMPLETED', resource: {} }, headers: { 'paypal-transmission-id': 't2' } });
+  assert.equal(forged.status, 401);
+  mock.paypalVerify = 'SUCCESS';
+  await db.prepare("INSERT INTO cosmetic_ledger (id, address, delta, reason, created_at) VALUES ('seed-shop', ?, 10, 'test-seed', 1)").bind(address).run();
+  const spent = await api('/api/v2/shop/spend', { method: 'POST', token, body: { sku: 'frame-points' } });
+  assert.equal(spent.status, 200, JSON.stringify(spent.data));
+  assert.equal(spent.data.cosmeticPoints, 0);
+  assert.equal(spent.data.competitivePoints, before.data.profile.points);
+  const founderNo = await api('/api/v2/shop/founder-import', { method: 'POST', token, body: {} });
+  assert.equal(founderNo.status, 403);
+  const adm = await loginIp(admin, '10.3.0.9');
+  const pts = (await api('/api/me', { token: adm })).data.profile.points;
+  const free = await api('/api/v2/shop/founder-import', { method: 'POST', token: adm, body: {} });
+  assert.equal(free.status, 200, JSON.stringify(free.data));
+  assert.equal(free.data.payment, false);
+  assert.equal(free.data.competitivePoints, pts);
+  const after = await api('/api/me', { token });
+  assert.equal(after.data.profile.points, before.data.profile.points);
+  assert.equal(after.data.profile.wins, before.data.profile.wins);
 });

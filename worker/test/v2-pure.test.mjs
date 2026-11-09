@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { capDamage, cleanMessage, cleanLabel, saturdayWindow, schedulerEnabled, RAID_SPECS, isoWeek } from '../src/v2text.js';
+import { paymentsOpen, purchaseLimit, paypalBase } from '../src/shop.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -45,6 +46,15 @@ test('planificateur éteint par défaut, courbe non importée par la communauté
   const toml = fs.readFileSync(path.join(root, 'wrangler.toml'), 'utf8');
   assert.match(toml, /V2_SCHEDULER = "0"/);
   assert.match(toml, /REAL_CLAIMS = "0"/);
+  assert.match(toml, /PAYMENTS_ENABLED = "0"/);
+  assert.match(toml, /api-m\.sandbox\.paypal\.com/);
+  assert.doesNotMatch(toml, /api-m\.paypal\.com/);
+  assert.equal(paymentsOpen({ PAYMENTS_ENABLED: '0', PAYPAL_SANDBOX_ACCESS_TOKEN: 'x' }), false);
+  assert.equal(paymentsOpen({ PAYMENTS_ENABLED: '1' }), false);
+  assert.equal(purchaseLimit({}).confirmed, false);
+  assert.equal(purchaseLimit({ COSMETIC_DAILY_PURCHASE_LIMIT: '3' }).value, 3);
+  assert.equal(purchaseLimit({ COSMETIC_DAILY_PURCHASE_LIMIT: '3' }).confirmed, false);
+  assert.throws(() => paypalBase({ PAYPAL_API_BASE: 'https://api-m.paypal.com' }));
   assert.doesNotMatch(toml, /\[triggers\]/);
   const community = fs.readFileSync(path.join(root, 'src/community.js'), 'utf8');
   assert.doesNotMatch(community, /secp256k1|ecdsa\.js/);

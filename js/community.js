@@ -26,7 +26,7 @@
     root = $('#v2-root');
     if (!root) return;
     root.innerHTML = '<div class="v2-notes" id="v2-notes"></div><div class="chips" id="v2-tabs" role="tablist"></div><div id="v2-panel"></div>';
-    var tabs = [['apercu', 'Aperçu'], ['guilde', 'Guilde'], ['chat', 'Chat'], ['amis', 'Amis'], ['raids', 'Raids'], ['quetes', 'Quêtes'], ['tournoi', 'Tournoi live'], ['rangs', 'Classements']];
+    var tabs = [['apercu', 'Aperçu'], ['guilde', 'Guilde'], ['chat', 'Chat'], ['amis', 'Amis'], ['raids', 'Raids'], ['quetes', 'Quêtes'], ['tournoi', 'Tournoi live'], ['rangs', 'Classements'], ['boutique', 'Boutique']];
     $('#v2-tabs').innerHTML = tabs.map(function (t) {
       return '<button type="button" class="chip' + (t[0] === tab ? ' active' : '') + '" data-v2tab="' + t[0] + '">' + t[1] + '</button>';
     }).join('');
@@ -85,6 +85,7 @@
     if (tab === 'quetes') return renderQuests();
     if (tab === 'tournoi') return renderTournament();
     if (tab === 'rangs') return renderRanks();
+    if (tab === 'boutique') return renderShop();
   }
 
   async function renderOverview() {
@@ -232,6 +233,30 @@
       '<p class="small">Mode live, distinct des fantômes V1. Inscription puis départ à l’heure du serveur.</p>' +
       '<form id="v2-tjoin" class="btn-row"><input class="input" id="v2-tf" value="0001"><button class="btn btn-small" type="submit">S’inscrire</button></form>' +
       '<h3>Inscrits</h3><ul>' + (entries || '<li>File vide.</li>') + '</ul><h3>Matchs</h3><ul>' + matches + '</ul></div>');
+  }
+
+  async function renderShop() {
+    var data;
+    try { data = await W.api('/api/v2/shop'); }
+    catch (e) {
+      box('<p class="warn-txt">Boutique indisponible sur ce serveur. Aucun paiement n’est simulé ici.</p>');
+      return;
+    }
+    var note = data.paymentsEnabled ? '' : '<p class="warn-txt">Cosmétiques seulement. Aucun bonus de puissance et aucune meilleure chance de récompense. Le paiement PayPal sandbox n’est pas connecté : aucun achat n’est lancé.</p>';
+    var challenge = data.challenge || {};
+    var rows = (data.catalog || []).map(function (item) {
+      var price = item.eur ? (item.eur + ' EUR') : (item.points + ' pts cosmétiques');
+      return '<li class="cosmetic-row"><span class="swatch ' + esc(item.css) + '" aria-hidden="true"></span><span><b>' + esc(item.name) + '</b><br><span class="small">' + esc(price) + (item.owned ? ' · possédé' : '') + '</span></span>' +
+        '<button type="button" class="btn btn-small" disabled>Indisponible</button></li>';
+    }).join('');
+    var hist = (data.orders || []).map(function (o) {
+      return '<li translate="no">' + esc(o.sku) + ' · ' + esc(o.amount) + ' ' + esc(o.currency) + ' · ' + esc(o.status) + '</li>';
+    }).join('') || '<li>Aucun achat enregistré.</li>';
+    box(note + '<p class="small">Défi du jour en attente : il comptera un combat manuel validé par le serveur, pas un combat automatique.</p>' +
+      '<p class="small">Limite d’achats par jour : ' + (data.purchaseLimitConfirmed ? esc(String(data.purchaseLimit)) : 'non confirmée') + '.</p>' +
+      '<p class="small">Aperçu du style, pas un objet possédé.</p>' +
+      '<ul class="missions">' + rows + '</ul><h3>Historique</h3><ul>' + hist + '</ul>' +
+      '<p class="small">Défi : ' + esc(challenge.status || 'pending') + '.</p>');
   }
 
   async function renderRanks() {

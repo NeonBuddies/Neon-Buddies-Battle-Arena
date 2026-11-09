@@ -115,7 +115,47 @@ Les exigences de jeu confirmées ensuite ne sont **pas encore** dans cette tête
 
 L’ajout d’une image perso (« Ajouter mon NFT ») est aujourd’hui local au navigateur, ouvert à tout visiteur, et exclu du PvP classé. Il n’est pas réservé au fondateur dans ce code, et il n’y a aucun prix. L’audit de ce périmètre est côté V1. Aucun montant, aucune monnaie et aucun moyen de paiement ne sont fixés : cette branche n’ajoute ni paiement, ni transaction, ni contrat, ni service payant. La mise en ligne d’un import pour un non-fondateur reste **en attente**. L’écran communauté le dit, sans bouton d’achat. Le jeu de base, les trois départs et les 100 images d’origine restent gratuits. Le fondateur n’a pas d’avantage de jeu.
 
-Il faudra reprendre ces changements V1 par merge avant qu’une V2 puisse être publiée. La V1 doit sortir avant la V2. Rien n’est fusionné ni déployé ici, et la base D1 de production n’est pas migrée.
+Il faudra reprendre ces changements V1 par merge avant qu’une V2 puisse être publiée. La tête de la PR 1 est toujours `eda20250` : le combat manuel n’y est pas encore. Cette branche ne le code pas.
+
+## Boutique cosmétique (scaffold, pas un encaissement)
+
+Cosmétiques seulement : cadre, titre, effet de victoire, effet de sort, thème d’arène, bannière de guilde, import d’identité visuelle. Prix serveur en EUR : 0,99 / 0,99 / 1,99 / 1,99 / 2,99 / 2,99 / 4,99. Aucun bonus de stats et aucune meilleure chance de récompense. Les 100 images d’origine ne sont pas modifiées. Les styles sont du CSS.
+
+Les points de classement (`players.points`, victoires, ELO) ne sont jamais débités. Un grand livre séparé (`cosmetic_ledger`) sert aux cosmétiques gagnés. Le dépenser ne change pas le classement.
+
+Le défi du jour qui crédite ce grand livre est **en attente** : il comptera un combat manuel terminé et validé par le serveur (au moins 150 secondes, quand la V1 l’aura enregistré). Les combats automatiques ne comptent pas. Personne ne peut le débloquer en payant, ni le farmer sans jouer.
+
+La limite d’achats par compte et par jour est une variable `COSMETIC_DAILY_PURCHASE_LIMIT`. Elle n’est **pas** posée. Le nombre 3 n’est pas une règle acceptée. L’API le dit : `purchaseLimitConfirmed: false`.
+
+`PAYMENTS_ENABLED` vaut `"0"`. Sans `PAYPAL_SANDBOX_ACCESS_TOKEN`, le Worker n’appelle pas PayPal et l’écran n’a qu’un bouton désactivé « Indisponible ». Le harness de test allume le drapeau contre un faux PayPal et le dit. Ce n’est pas un paiement réel.
+
+PayPal, d’après la doc officielle (Orders v2, sandbox `api-m.sandbox.paypal.com`, vérification `POST /v1/notifications/verify-webhook-signature`) :
+
+- créer la commande côté serveur (`intent: CAPTURE`, montant du catalogue) ;
+- capturer côté serveur et exiger le même montant EUR, la même commande, le même compte, et le marchand si `PAYPAL_MERCHANT_ID` est posé ;
+- webhook vérifié avant de livrer ou de retirer l’objet (remboursement / annulation) ;
+- une livraison et un événement ne s’appliquent qu’une fois.
+
+L’hôte live `api-m.paypal.com` est refusé par le code.
+
+### Ce que le parent pose, sans me l’envoyer
+
+Secret (hors git, `npx wrangler secret put`) :
+
+- `PAYPAL_SANDBOX_ACCESS_TOKEN` — jeton OAuth **sandbox**, pas live. Il expire (souvent quelques heures). Le parent le renouvelle.
+- `PAYPAL_SANDBOX_WEBHOOK_ID` — identifiant du webhook sandbox, une fois l’URL réellement branchée.
+
+Config non secrète, plus tard, pas maintenant :
+
+- `PAYPAL_MERCHANT_ID` — identifiant du compte marchand **sandbox**.
+- `COSMETIC_DAILY_PURCHASE_LIMIT` — seulement quand le nombre est décidé.
+- `PAYMENTS_ENABLED` reste `"0"` jusqu’à une approbation séparée.
+
+Compte PayPal à créer côté parent, sandbox seulement : un compte développeur, une application REST **sandbox**, un compte vendeur sandbox, puis un webhook sur `PAYMENT.CAPTURE.COMPLETED`, `PAYMENT.CAPTURE.REFUNDED` et `PAYMENT.CAPTURE.REVERSED` vers `https://<worker>/api/paypal/webhook` le jour où le lancement sera décidé. Obtenir le jeton : `POST https://api-m.sandbox.paypal.com/v1/oauth2/token` avec les identifiants sandbox du parent (`grant_type=client_credentials`). Ne pas créer d’application live et ne pas coller de secret ici. Aucune carte n’est demandée.
+
+L’import à 4,99 EUR est cosmétique. Le fondateur l’obtient par la signature de wallet déjà exigée pour l’admin, sans paiement et sans stats en plus. Le formulaire local « Ajouter mon NFT » n’est pas refermé par cette branche : l’audit d’accès reste à la V1.
+
+Il faudra reprendre ces changements V1 par merge avant qu’une V2 puisse être publiée. La V1 doit sortir avant la V2. Rien n’est fusionné ni déployé ici, et la base D1 de production n’est pas migrée. La migration `0003_cosmetics.sql` n’est pas appliquée à la base distante.
 
 ### Offre gratuite (docs Cloudflare, lues pour cette branche)
 
