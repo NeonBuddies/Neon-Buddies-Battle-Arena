@@ -1093,7 +1093,7 @@
     }
   }
   function bindRewards() {
-    W.onChange(function () { updateBackendBanner(); var v = (location.hash || '').slice(1); if (v === 'recompenses') renderRewards(); else if (v === 'admin') renderAdmin(); else if (v === 'arene' && !ui.battle) renderArenaSetup(); refreshBadge(); });
+    W.onChange(function () { updateBackendBanner(); refreshBuyMail(); var v = (location.hash || '').slice(1); if (v === 'recompenses') renderRewards(); else if (v === 'admin') renderAdmin(); else if (v === 'arene' && !ui.battle) renderArenaSetup(); refreshBadge(); });
     document.addEventListener('click', async function (e) {
       var w = e.target.closest('[data-w]');
       if (w) {
@@ -1274,6 +1274,13 @@
       document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
       toast('Sauvegarde exportée.');
     });
+    var copyMail = $('#buy-mail-copy');
+    if (copyMail) copyMail.addEventListener('click', function () {
+      var addr = 'closecorentin25@gmail.com';
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(addr).then(function () { toast('Adresse copiée.'); }).catch(function () { toast(addr); });
+      else toast(addr);
+    });
+    refreshBuyMail();
     $('#import-file').addEventListener('change', function (e) {
       var f = e.target.files[0]; if (!f) return;
       var rd = new FileReader();
@@ -1287,6 +1294,14 @@
   }
 
   /* ---------- Démarrage ---------- */
+  function refreshBuyMail() {
+    var link = $('#buy-mail-link'); if (!link) return;
+    var subject = encodeURIComponent('Neon Buddies purchase request');
+    var href = 'mailto:closecorentin25@gmail.com?subject=' + subject;
+    var sess = W.getSession();
+    if (sess && sess.address) href += '&body=' + encodeURIComponent('Public id: ' + sess.address);
+    link.href = href;
+  }
   function updateBackendBanner() {
     var el = $('#backend-banner'); if (!el) return;
     var b = W.backendStatus(), msg;

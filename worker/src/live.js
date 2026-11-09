@@ -167,6 +167,22 @@ export function createLiveApi(d) {
     return { id, seed, resumed: false, mode, difficulty: state.difficulty, battle: E.manualView(state, now), fighterLevel: lvA };
   }
 
+  function viewFromSettled(summary, now) {
+    const r = summary && summary.result || {};
+    const A = r.fighters && r.fighters.A || {};
+    const B = r.fighters && r.fighters.B || {};
+    return {
+      status: summary && summary.forfeit ? 'forfeit' : 'finished',
+      seq: 0, mode: summary && summary.mode || null, difficulty: summary && summary.difficulty || null,
+      startedAt: null, readyAt: null, deadlineAt: null, now: now, minMs: null,
+      winner: r.winner || null, forfeit: !!(summary && summary.forfeit),
+      playerActions: r.playerActions || 0, engaged: !(summary && summary.forfeit),
+      you: { id: A.id || null, name: A.name || '', hp: A.hp || 0, maxHp: A.maxHp || 0, shield: 0, atkReadyAt: 0, spellReadyAt: 0, spell: null, actions: r.playerActions || 0 },
+      foe: { id: B.id || null, name: B.name || '', hp: B.hp || 0, maxHp: B.maxHp || 0, shield: 0, spell: typeof B.spell === 'string' ? B.spell : '', boss: false },
+      events: []
+    };
+  }
+
   async function loadOwned(env, sess, id) {
     const row = await env.DB.prepare('SELECT * FROM live_battles WHERE id = ?1 AND address = ?2').bind(id, sess.address).first();
     if (!row) throw new HttpError(404, 'Combat introuvable');
@@ -177,7 +193,10 @@ export function createLiveApi(d) {
     const b = await bodyOf(req);
     await rateLimit(env, 'act:' + sess.address, 2000, 60);
     const row = await loadOwned(env, sess, String(b.id || ''));
-    if (row.summary) return { battle: E.manualView(parseState(row), nowOf(req, env)), settled: JSON.parse(row.summary) };
+    if (row.summary) {
+      const settled = JSON.parse(row.summary);
+      return { battle: viewFromSettled(settled, nowOf(req, env)), settled };
+    }
     if (row.status !== 'active') throw new HttpError(409, 'Ce combat est déjà terminé.');
     const now = nowOf(req, env);
     const seq = Number(b.seq);
@@ -195,7 +214,10 @@ export function createLiveApi(d) {
       const saved = await saveActive(env, row.id, sess.address, state, parseState(row).seq);
       if (!saved) {
         const again = await loadOwned(env, sess, row.id);
-        if (again.summary) return { battle: E.manualView(parseState(again), now), settled: JSON.parse(again.summary) };
+        if (again.summary) {
+          const settled = JSON.parse(again.summary);
+          return { battle: viewFromSettled(settled, now), settled };
+        }
         return { battle: E.manualView(parseState(again), now), settled: null };
       }
     }
@@ -227,7 +249,10 @@ export function createLiveApi(d) {
     const id = new URL(req.url).searchParams.get('id');
     const row = id ? await loadOwned(env, sess, id) : await activeRow(env, sess.address);
     if (!row) return { battle: null };
-    if (row.summary) return { id: row.id, battle: E.manualView(parseState(row), now), settled: JSON.parse(row.summary) };
+    if (row.summary) {
+      const settled = JSON.parse(row.summary);
+      return { id: row.id, battle: viewFromSettled(settled, now), settled };
+    }
     const prev = parseState(row);
     const ticked = E.manualTick(prev, now);
     let state = ticked;

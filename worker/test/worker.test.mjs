@@ -131,7 +131,7 @@ async function play(token, body) {
     now = t + 1000;
   }
   const fin = await api('/api/battle/finish', { method: 'POST', token, body: { id: start.data.id }, headers: { 'x-nb-test-now': String(battle ? battle.deadlineAt : now) } });
-  if (fin.data && start.data) fin.data.seed = fin.data.seed || start.data.seed;
+  if (fin.data && start.data) { fin.data.seed = fin.data.seed || start.data.seed; fin.data.id = fin.data.id || start.data.id; }
   return fin;
 }
 async function login(w) {
@@ -266,6 +266,24 @@ test('combat manuel : le serveur ignore le vainqueur envoyé et n’accorde rien
   assert.equal(r.data.profile.points, r.data.summary.points);
   assert.ok(r.data.profile.points < 999999);
   assert.equal(r.data.profile.battles, 1);
+  const stored = await db.prepare('SELECT state FROM live_battles WHERE id = ?').bind(r.data.id).first();
+  assert.equal(stored.state, '{"s":1}', 'le combat réglé est persisté compact, pas un état complet');
+  const read1 = await api('/api/battle?id=' + r.data.id, { token: pTok });
+  const read2 = await api('/api/battle?id=' + r.data.id, { token: pTok });
+  assert.equal(read1.status, 200, JSON.stringify(read1.data));
+  assert.equal(read2.status, 200);
+  assert.equal(read1.data.battle.status, 'finished');
+  assert.equal(read1.data.battle.you.id, '0002');
+  assert.equal(read1.data.settled.summary.points, r.data.summary.points);
+  assert.equal(read2.data.settled.summary.points, read1.data.settled.summary.points);
+  assert.equal((await api('/api/battle?id=' + r.data.id, { token: aTok })).status, 404);
+  const again1 = await api('/api/battle/finish', { method: 'POST', token: pTok, body: { id: r.data.id } });
+  const again2 = await api('/api/battle/finish', { method: 'POST', token: pTok, body: { id: r.data.id } });
+  assert.equal(again1.status, 200);
+  assert.equal(again2.data.summary.points, again1.data.summary.points);
+  assert.equal((await api('/api/me', { token: pTok })).data.profile.battles, 1);
+  const rewardsAfter = await db.prepare('SELECT COUNT(*) AS n FROM rewards WHERE address = ?').bind(player.address.toLowerCase()).first();
+  assert.equal(rewardsAfter.n, (r.data.newRewards || []).length);
   const row = await db.prepare('SELECT seed, winner FROM fights WHERE address = ?').bind(player.address.toLowerCase()).first();
   assert.equal(row.seed, r.data.seed); assert.equal(row.winner, r.data.result.winner);
   const again = await api('/api/battle/finish', { method: 'POST', token: pTok, body: { id: r.data.id } });
@@ -630,6 +648,13 @@ test('MODES : solo manuel, boss, défi 3 tentatives, tournoi et PvP en attente',
   assert.equal(s.data.result.fighters.B.level, E.botLevel('cauchemar', 1));
   assert.equal(s.data.result.manual, true);
   assert.equal(s.data.attemptsUsed, 1);
+  const soloRow = await db.prepare('SELECT state FROM live_battles WHERE id = ?').bind(s.data.id).first();
+  assert.equal(soloRow.state, '{"s":1}');
+  const soloRead = await api('/api/battle?id=' + s.data.id, { token: t1 });
+  assert.equal(soloRead.status, 200, JSON.stringify(soloRead.data));
+  assert.equal(soloRead.data.settled.attemptsUsed, 1);
+  assert.equal((await db.prepare('SELECT attempts_used FROM challenge_runs WHERE address = ?').bind(w1.address.toLowerCase()).first()).attempts_used, 1);
+  assert.equal((await api('/api/battle?id=' + s.data.id, { token: t2 })).status, 404);
   assert.equal((await api('/api/challenge/new-run', { method: 'POST', token: t1 })).status, 409);
   assert.equal((await api('/api/battle/start', { method: 'POST', token: t1, body: { mode: 'solo', difficulty: 'dieu', fighterId: ids[0] } })).status, 400);
   await sleep(200);

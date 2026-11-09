@@ -156,6 +156,9 @@ try {
     await page.click('[data-w="signin"]');
     await page.waitForFunction(() => /✓ connecté/.test(document.querySelector('#wallet-status').textContent));
     check(true, 'Connexion par signature (personal_sign) acceptée par le serveur');
+    const mail = await page.$eval('#buy-mail-link', a => a.getAttribute('href'));
+    check(/^mailto:closecorentin25@gmail\.com\?subject=Neon%20Buddies%20purchase%20request/.test(mail) && /body=Public%20id%3A%200x/.test(mail), 'Demande d’achat : mailto vers l’adresse publique, sans paiement');
+    check(/n’encaisse aucun paiement/.test(await page.$eval('#buy-mail', e => e.innerText)), 'Le bloc e-mail dit qu’aucun article n’est débloqué');
     await page.click('[data-nav="arene"]');
     await page.waitForSelector('#ranked-wrap:not([hidden])');
     await page.click('[data-random="A"]');
