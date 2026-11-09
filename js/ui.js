@@ -1311,7 +1311,10 @@
       var rnd = t.closest('[data-random]');
       if (rnd) { var sd = rnd.getAttribute('data-random'); setSel(sd, randomChar(ui.sel[sd === 'A' ? 'B' : 'A']).id); renderArenaSetup(); A.click(); return; }
       var md = t.closest('[data-mode]');
-      if (md) { stopPvp(false); save.settings.mode = md.getAttribute('data-mode'); persist(); $('#pvp-wait').hidden = true; renderArenaSetup(); A.click(); return; }
+      if (md) {
+        if (ui.battle && !ui.battle.done) { toast('Le combat est encore en cours.'); return; }
+        ui.battle = null; stopPvp(false); save.settings.mode = md.getAttribute('data-mode'); persist(); $('#pvp-wait').hidden = true; renderArenaSetup(); A.click(); return;
+      }
       var stBtn = t.closest('[data-starter]');
       if (stBtn) {
         var sid = stBtn.getAttribute('data-starter');
