@@ -479,7 +479,7 @@
       mode: opts.mode || 'duel', difficulty: opts.difficulty || null,
       boss: opts.boss ? { id: opts.boss.id, phases: opts.boss.phases, phase: 0 } : null,
       A: bootFighter(A, now), B: bootFighter(B, now + 1500),
-      events: [{ type: 'start', text: A.name + ' entre dans l’arène. À toi de frapper.' }],
+      events: [{ type: 'start', text: A.name + ' entre dans l’arène. Le combat commence automatiquement.' }],
       playerActions: 0, damageToB: 0, winner: null, forfeit: false
     };
   }

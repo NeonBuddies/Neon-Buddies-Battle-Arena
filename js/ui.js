@@ -366,6 +366,7 @@
   function openManual(bt) {
     if (location.hash !== '#arene') { history.replaceState(null, '', '#arene'); route(); }
     $('#arena-setup').hidden = true; $('#arena-fight').hidden = false; $('#pvp-wait').hidden = true; $('#result').hidden = true;
+    var controls = $('#fight-controls'); if (controls) controls.hidden = !bt.ranked;
     $('#battle-log').innerHTML = '';
     drawFighter('A', bt.a, { level: 1, maxHp: bt.view.you.maxHp, hp: bt.view.you.hp });
     drawFighter('B', bt.b, { level: 1, maxHp: bt.view.foe.maxHp, hp: bt.view.foe.hp });
