@@ -354,8 +354,10 @@
         else { opp = randomChar(a.id); lvB = E.botLevel(diff.id, prog(a.id).level); opts.scaleB = diff.scale; }
         var state = E.createManualBattle(a, prog(a.id).level, opp, lvB, randomSeed(), opts);
         var foeL = m === 'duel' ? b : (m === 'boss' ? bossView(bossToday()) : opp);
-        var quick = !!(forced && forced.quick);
-        ui.battle = { manual: true, ranked: false, quick: quick, quickNow: quick ? Date.now() : 0, state: state, view: E.manualView(state, quick ? Date.now() : manualNow(state)), a: a, b: foeL, extra: extra, diff: diff, timers: [], speed: quick ? 4 : 1, done: false };
+        // Tous les combats locaux sont automatiques : les deux personnages jouent
+        // et s'infligent leurs dégâts sans attendre une action manuelle.
+        var quick = true;
+        ui.battle = { manual: true, ranked: false, quick: quick, quickNow: Date.now(), state: state, view: E.manualView(state, Date.now()), a: a, b: foeL, extra: extra, diff: diff, timers: [], speed: 4, done: false };
         openManual(ui.battle);
         localLoop();
       }
