@@ -351,5 +351,4 @@ try {
   try { process.kill(-dev.pid, 'SIGTERM'); } catch (e) {}
   server.closeAllConnections(); server.close();
   fs.rmSync(persist, { recursive: true, force: true });
-  fs.writeFileSync(path.join(root, '..', 'tests', 'e2e-web3-resultats.txt'), report.join('\n') + '\n');
 }

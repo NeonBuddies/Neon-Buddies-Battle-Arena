@@ -2,7 +2,7 @@
 
 Revue du 9 novembre 2026, deuxième passage sur le même code. Seuls les contrôles **relancés** ci-dessous sont des résultats. Rien ici n’est un audit.
 
-Un ancien rapport contenait une ligne parasite « failing tests ». Le fichier `tests/e2e-web3-resultats.txt` a été retiré : il présentait une émulation Chromium comme un téléphone Android.
+Un ancien rapport contenait une ligne parasite « failing tests ». Le journal `tests/e2e-web3-resultats.txt` n’est plus écrit : il présentait une émulation Chromium comme un téléphone Android. Le résultat du navigateur est dans cette page.
 
 ## Commandes et résultats
 
