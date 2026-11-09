@@ -13,7 +13,7 @@ function parseState(row) {
 }
 
 export function createLiveApi(d) {
-  const { E, HttpError, CHAR_BY_ID, COLLECTION, randomHex, rand32, randomChar, fightLock, loadChars, lvOf, recordMatches, getPlayer, publicProfile, rateLimit, dayStart } = d;
+  const { E, HttpError, CHAR_BY_ID, COLLECTION, randomHex, rand32, randomChar, fightLock, loadChars, lvOf, recordMatches, commitProgress, settleProgress, getPlayer, publicProfile, rateLimit, dayStart } = d;
 
   async function bodyOf(req) {
     const len = Number(req.headers.get('content-length') || 0);
@@ -49,8 +49,8 @@ export function createLiveApi(d) {
   async function settle(env, ctx, sess, row, state) {
     if (state.status === 'active') return null;
     if (row.summary) return JSON.parse(row.summary);
-    const claim = await env.DB.prepare("UPDATE live_battles SET status = 'finishing', active_key = NULL, state = ?1, updated_at = ?2 WHERE id = ?3 AND status = 'active'")
-      .bind(JSON.stringify(state), Date.now(), row.id).run();
+    const claim = await env.DB.prepare("UPDATE live_battles SET status = 'finishing', active_key = NULL, updated_at = ?1 WHERE id = ?2 AND status = 'active'")
+      .bind(Date.now(), row.id).run();
     if (!claim.meta || !claim.meta.changes) {
       const again = await env.DB.prepare('SELECT summary FROM live_battles WHERE id = ?1').bind(row.id).first();
       if (again && again.summary) return JSON.parse(again.summary);
@@ -65,24 +65,45 @@ export function createLiveApi(d) {
       const diff = state.difficulty ? E.DIFFICULTIES[state.difficulty] : null;
       const ids = [state.A.id];
       if (state.mode === 'duel') ids.push(state.B.id);
-      const opts = { mode: state.mode, mult: diff ? diff.points : 1, knownChars: await loadChars(env, sess.address, ids) };
+      const [p, missionRow, knownChars, bossUsed] = await Promise.all([
+        getPlayer(env, sess.address),
+        env.DB.prepare('SELECT state FROM missions WHERE address = ?1 AND day = ?2').bind(sess.address, E.dayKey()).first(),
+        loadChars(env, sess.address, ids),
+        state.mode === 'boss'
+          ? env.DB.prepare("SELECT COUNT(*) AS n FROM fights WHERE address = ?1 AND mode = 'boss' AND created_at >= ?2").bind(sess.address, dayStart(Date.now())).first()
+          : Promise.resolve(null)
+      ]);
+      const opts = { mode: state.mode, mult: diff ? diff.points : 1, knownChars, missionRow, defer: true };
       if (state.mode === 'boss') opts.points = E.bossPoints(result);
-      const p = await getPlayer(env, sess.address);
-      const out = await recordMatches(env, ctx, sess.address, p, [{ result, seed: state.seed, persistOpp: state.mode === 'duel' }], opts);
-      if (state.mode === 'solo' && !state.pvpFallback) await consumeChallenge(env, sess.address, state.difficulty);
-      let attemptsLeft = null;
-      if (state.mode === 'boss') {
-        const max = 3;
-        const used = await env.DB.prepare("SELECT COUNT(*) AS n FROM fights WHERE address = ?1 AND mode = 'boss' AND created_at >= ?2").bind(sess.address, dayStart(Date.now())).first();
-        attemptsLeft = Math.max(0, max - used.n);
-      }
+      const book = await recordMatches(env, ctx, sess.address, p, [{ result, seed: state.seed, persistOpp: state.mode === 'duel' }], opts);
+      const slim = Object.assign({}, result, { events: [] });
+      book.matches[0].result = slim;
+      const extras = [];
+      let challengeAt = -1;
       if (state.mode === 'solo' && !state.pvpFallback) {
-        const run = await env.DB.prepare('SELECT attempts_used, eliminated, difficulty FROM challenge_runs WHERE address = ?1').bind(sess.address).first();
-        payload = Object.assign({ forfeit: false, seed: state.seed, result, mode: state.mode, difficulty: state.difficulty, attemptsUsed: run ? run.attempts_used : 1, attemptsMax: CHALLENGE_ATTEMPTS, eliminated: !!(run && run.eliminated) }, out);
-      } else payload = Object.assign({ forfeit: false, seed: state.seed, result, mode: state.mode, difficulty: state.difficulty, attemptsLeft }, out);
+        extras.push(env.DB.prepare('INSERT OR IGNORE INTO challenge_runs (address, run_id, difficulty, attempts_used, eliminated, started_at) VALUES (?1, ?2, ?3, 0, 0, ?4)')
+          .bind(sess.address, randomHex(8), state.difficulty, Date.now()));
+        challengeAt = extras.length;
+        extras.push(env.DB.prepare('UPDATE challenge_runs SET attempts_used = attempts_used + 1, eliminated = CASE WHEN attempts_used + 1 >= ?2 THEN 1 ELSE 0 END WHERE address = ?1 RETURNING attempts_used, eliminated')
+          .bind(sess.address, CHALLENGE_ATTEMPTS));
+      }
+      const committed = await commitProgress(env, [book], extras);
+      const runRow = challengeAt >= 0 ? committed.results[committed.extraStart + challengeAt].results[0] : null;
+      const out = await settleProgress(env, ctx, book, committed.player);
+      payload = Object.assign({
+        forfeit: false, seed: state.seed, result: slim, mode: state.mode, difficulty: state.difficulty,
+        attemptsLeft: state.mode === 'boss' ? Math.max(0, 3 - ((bossUsed && bossUsed.n) || 0) - 1) : null,
+        attemptsUsed: runRow ? runRow.attempts_used : null,
+        attemptsMax: state.mode === 'solo' && !state.pvpFallback ? CHALLENGE_ATTEMPTS : null,
+        eliminated: runRow ? !!runRow.eliminated : false
+      }, out);
+      await env.DB.prepare("UPDATE live_battles SET status = 'finished', summary = ?1, state = '{\"s\":1}', updated_at = ?2 WHERE id = ?3")
+        .bind(JSON.stringify(payload), Date.now(), row.id).run();
     }
-    await env.DB.prepare('UPDATE live_battles SET status = ?1, summary = ?2, state = ?3, updated_at = ?4 WHERE id = ?5')
-      .bind(payload.forfeit ? 'forfeit' : 'finished', JSON.stringify(payload), JSON.stringify(state), Date.now(), row.id).run();
+    if (state.forfeit || state.playerActions < 1) {
+      await env.DB.prepare("UPDATE live_battles SET status = 'forfeit', summary = ?1, state = ?2, updated_at = ?3 WHERE id = ?4")
+        .bind(JSON.stringify(payload), '{"s":1}', Date.now(), row.id).run();
+    }
     return payload;
   }
 
@@ -170,11 +191,13 @@ export function createLiveApi(d) {
     if (!acted.ok && acted.reason === 'seq') return { battle: E.manualView(state, now), settled: null };
     if (!acted.ok) throw new HttpError(400, 'Action refusée.');
     state = acted.state;
-    const saved = await saveActive(env, row.id, sess.address, state, parseState(row).seq);
-    if (!saved) {
-      const again = await loadOwned(env, sess, row.id);
-      if (again.summary) return { battle: E.manualView(parseState(again), now), settled: JSON.parse(again.summary) };
-      return { battle: E.manualView(parseState(again), now), settled: null };
+    if (state.status === 'active') {
+      const saved = await saveActive(env, row.id, sess.address, state, parseState(row).seq);
+      if (!saved) {
+        const again = await loadOwned(env, sess, row.id);
+        if (again.summary) return { battle: E.manualView(parseState(again), now), settled: JSON.parse(again.summary) };
+        return { battle: E.manualView(parseState(again), now), settled: null };
+      }
     }
     row.state = JSON.stringify(state);
     const settled = await settle(env, ctx, sess, row, state);
@@ -194,12 +217,6 @@ export function createLiveApi(d) {
       await saveActive(env, row.id, sess.address, state, parseState(row).seq);
       throw new HttpError(425, 'Le combat continue : un des deux tient encore.');
     }
-    const saved = state.status === 'active' ? false : await saveActive(env, row.id, sess.address, state, parseState(row).seq);
-    if (!saved && state.status !== 'active') {
-      const again = await loadOwned(env, sess, row.id);
-      if (again.summary) return JSON.parse(again.summary);
-    }
-    row.state = JSON.stringify(state);
     const settled = await settle(env, ctx, sess, row, state);
     if (!settled) throw new HttpError(425, 'Le combat continue.');
     return settled;

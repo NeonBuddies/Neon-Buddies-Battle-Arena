@@ -249,7 +249,8 @@ function progressStatements(env, b) {
       day_points = CASE WHEN day = ?8 THEN day_points + ?9 ELSE ?9 END,
       day_fights = CASE WHEN day = ?8 THEN day_fights + ?10 ELSE ?10 END,
       last_fighter = ?11, last_level = ?12
-      WHERE address = ?13 AND battles = ?14`)
+      WHERE address = ?13 AND battles = ?14
+      RETURNING *`)
       .bind(b.gained, b.np.wins - (b.p.wins || 0), b.np.losses - (b.p.losses || 0), b.dBattles, b.np.streak, b.np.bestStreak, b.legendWins, b.day, b.gained, b.matches.length, b.last.id, b.last.level, b.address, b.p.battles || 0)
   ];
 }
@@ -276,9 +277,11 @@ async function commitProgress(env, books, extra) {
     b.matches.forEach((m, i) => stmts.push(env.DB.prepare('INSERT INTO fights (address, a, b, seed, winner, points, created_at, mode) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
       .bind(b.address, m.result.fighters.A.id, m.result.fighters.B.id, m.seed >>> 0, m.result.winner, i === b.matches.length - 1 ? b.gained : 0, b.now, b.opts.mode || 'duel')));
   }
+  const extraStart = stmts.length;
   if (extra) stmts.push(...extra);
   try {
-    await env.DB.batch(stmts);
+    const results = await env.DB.batch(stmts);
+    return { results, extraStart, player: results[0] && results[0].results ? results[0].results[0] : null };
   } catch (e) {
     if (/UNIQUE constraint failed: players\.address/i.test(String(e && (e.message || e.cause && e.cause.message) || e))) {
       throw new HttpError(409, 'Conflit de progression, réessaie.');
@@ -296,8 +299,8 @@ async function recordMatches(env, ctx, address, p, matches, opts) {
   p = p || await getPlayer(env, address);
   const ids = []; matches.forEach(m => { ids.push(m.result.fighters.A.id); if (m.persistOpp) ids.push(m.result.fighters.B.id); });
   const [chars, mrow] = await Promise.all([
-    opts.knownChars ? opts.knownChars : loadChars(env, address, ids),
-    env.DB.prepare('SELECT state FROM missions WHERE address = ?1 AND day = ?2').bind(address, day).first()
+    opts.knownChars ? Promise.resolve(opts.knownChars) : loadChars(env, address, ids),
+    opts.missionRow !== undefined ? Promise.resolve(opts.missionRow) : env.DB.prepare('SELECT state FROM missions WHERE address = ?1 AND day = ?2').bind(address, day).first()
   ]);
   let prog = { profile: { points: p.points, wins: p.wins, losses: p.losses, battles: p.battles, streak: p.streak, bestStreak: p.best_streak }, chars, history: [] };
   let mState = mrow ? JSON.parse(mrow.state) : null, bonus = 0, completed = [], battlePts = 0, legendWins = 0, summary = null;
@@ -325,12 +328,12 @@ async function recordMatches(env, ctx, address, p, matches, opts) {
     })
   };
   if (opts.defer) return book;
-  await commitProgress(env, [book]);
-  return settleProgress(env, ctx, book);
+  const committed = await commitProgress(env, [book]);
+  return settleProgress(env, ctx, book, committed.player);
 }
 
-async function settleProgress(env, ctx, book) {
-  const after = await getPlayer(env, book.address);
+async function settleProgress(env, ctx, book, playerRow) {
+  const after = playerRow || await getPlayer(env, book.address);
   const won = book.matches[book.matches.length - 1].result.winner === 'A';
   if (won && env.TELEGRAM_NOTIFY_VICTORIES === '1') {
     await notify(env, ctx, 'victory', `⚔️ Victoire${book.opts.mode && book.opts.mode !== 'duel' ? ' (' + book.opts.mode + ')' : ''} de ${after.name ? after.name + ' (' + short(after.address) + ')' : short(after.address)} : ${book.last.name} bat ${book.matches[book.matches.length - 1].result.fighters.B.name} (+${book.gained} pts, série ${after.streak}).`,
@@ -768,7 +771,7 @@ async function adminTx(env, ctx, id, txHash) {
 
 const live = createLiveApi({
   E, HttpError, CHAR_BY_ID, COLLECTION, randomHex, rand32, randomChar, fightLock, loadChars, lvOf,
-  recordMatches, getPlayer, publicProfile, rateLimit, dayStart
+  recordMatches, commitProgress, settleProgress, getPlayer, publicProfile, rateLimit, dayStart
 });
 
 /* ---------- routeur ---------- */
