@@ -480,7 +480,7 @@
       boss: opts.boss ? { id: opts.boss.id, phases: opts.boss.phases, phase: 0 } : null,
       A: bootFighter(A, now), B: bootFighter(B, now + 1500),
       events: [{ type: 'start', text: A.name + ' entre dans l’arène. Le combat commence automatiquement.' }],
-      playerActions: 0, damageToB: 0, damageMult: opts.damageMult || 1, winner: null, forfeit: false
+      playerActions: 0, damageToB: 0, damageMult: opts.damageMult || 1, protectUntilReady: opts.protectUntilReady !== false, winner: null, forfeit: false
     };
   }
   function pushEvent(state, ev) {
@@ -503,7 +503,7 @@
     var absorbed = 0;
     if (def.shield > 0) { absorbed = Math.min(def.shield, dmg - 1); if (absorbed < 0) absorbed = 0; def.shield -= absorbed; dmg -= absorbed; }
     var floored = false;
-    if (now < state.readyAt && def.hp - dmg < 1) { def.hp = 1; floored = true; }
+    if (state.protectUntilReady !== false && now < state.readyAt && def.hp - dmg < 1) { def.hp = 1; floored = true; }
     else def.hp = Math.max(0, def.hp - dmg);
     if (def === state.B) state.damageToB += dmg;
     var heal = 0;
@@ -524,7 +524,7 @@
     if (heal) pushEvent(state, { type: 'heal', side: att.side, heal: heal, text: att.name + ' récupère ' + heal + ' PV' });
     if (absorbed) pushEvent(state, { type: 'shield', side: def.side, absorbed: absorbed, text: def.name + ' absorbe ' + absorbed + ' dégâts' });
     if (def === state.B && def.hp > 1) applyBossPhase(state);
-    if (def.hp <= 0 && now >= state.readyAt) finishKo(state, att.side);
+    if (def.hp <= 0 && (state.protectUntilReady === false || now >= state.readyAt)) finishKo(state, att.side);
   }
   function applyBossPhase(state) {
     if (!state.boss) return;

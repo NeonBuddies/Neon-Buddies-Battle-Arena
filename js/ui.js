@@ -348,7 +348,7 @@
       }
       if (!online) {
         if (m === 'boss' && localBossLeft() <= 0) { toast('Tentatives contre le boss épuisées pour aujourd’hui. Reviens demain !'); return; }
-        var opp, lvB, opts = { now: Date.now(), minMs: manualClockMs(), mode: m, difficulty: m === 'solo' ? diff.id : null, damageMult: 6 };
+        var opp, lvB, opts = { now: Date.now(), minMs: manualClockMs(), mode: m, difficulty: m === 'solo' ? diff.id : null, damageMult: 6, protectUntilReady: false };
         if (m === 'duel') { opp = b; lvB = prog(b.id).level; }
         else if (m === 'boss') { var boss = bossToday(); opp = E.bossCharacter(boss, window.NB_COLLECTION); lvB = E.bossLevel(prog(a.id).level); opts.boss = boss; }
         else { opp = randomChar(a.id); lvB = E.botLevel(diff.id, prog(a.id).level); opts.scaleB = diff.scale; }
