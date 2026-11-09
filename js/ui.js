@@ -948,9 +948,40 @@
       el.innerHTML = onchainCache;
     } catch (e) { el.innerHTML = '<p class="err-txt small">RPC injoignable : ' + esc(errMsg(e)) + '</p>'; }
   }
+  async function renderShop() {
+    var el = $('#test-shop-items'); if (!el) return;
+    try {
+      var shop = await W.api('/api/shop', { auth: false });
+      var labels = { characters: 'Character packs', skins: 'Skins', gems: 'Gems', nfts: 'NFTs', premium: 'Contenu premium' };
+      var groups = {};
+      shop.products.forEach(function (p) { (groups[p.category] || (groups[p.category] = [])).push(p); });
+      el.innerHTML = Object.keys(groups).map(function (cat) { return '<h4>' + labels[cat] + '</h4>' + groups[cat].map(function (p) { var price = p.priceEth ? esc(p.priceEth) + ' ETH' : (p.priceEur ? esc(String(p.priceEur)) + ' EUR' : 'Prix à définir'); return '<div class="rule"><span>' + esc(p.name) + '</span><b>' + price + '</b></div>'; }).join(''); }).join('') + '<p class="muted small">Checkout : ' + (shop.checkout ? 'actif' : 'désactivé') + ' · Réseau prévu : Robinhood Chain (' + shop.chainId + ')</p>';
+    } catch (e) { el.innerHTML = '<p class="err-txt small">Catalogue indisponible.</p>'; }
+  }
+  async function renderPlatformFeatures() {
+    var el = $('#platform-features'); if (!el) return;
+    var sess = W.getSession();
+    if (!W.apiEnabled() || !sess) {
+      el.innerHTML = '<h3>Progression &amp; récompenses</h3><p class="muted small">Connecte ton wallet pour charger les récompenses quotidiennes, le Battle Pass et ton inventaire sécurisé.</p>';
+      return;
+    }
+    try {
+      var d = await W.api('/api/features'), claimed = {};
+      d.dailyClaims.forEach(function (c) { claimed[c.day] = c; });
+      var today = claimed[d.day] ? '<span class="status st-sent">Réclamée aujourd’hui</span>' : '<button class="btn btn-primary btn-small" data-feature-daily>Réclamer aujourd’hui</button>';
+      var days = d.dayRewards.map(function (r, i) { return '<div class="rule"><span>Jour ' + (i + 1) + ' · ' + esc(r.label) + '</span>' + (i + 1 === d.dayIndex ? today : (i + 1 < d.dayIndex ? '<span class="status st-approved">Disponible</span>' : '<span class="muted small">À venir</span>')) + '</div>'; }).join('');
+      var level = Math.min(d.pass.levels, Math.floor((d.pass.progress.xp || 0) / d.pass.xpPerLevel)), pct = Math.min(100, (d.pass.progress.xp || 0) / (d.pass.levels * d.pass.xpPerLevel) * 100);
+      var pass = '<div class="m-top"><span>Battle Pass · niveau ' + level + '/' + d.pass.levels + '</span><b>' + (d.pass.progress.xp || 0) + ' XP</b></div><div class="bar"><i style="width:' + pct.toFixed(0) + '%"></i></div><p class="muted small">Saison jusqu’au ' + new Date(d.seasonEnds).toLocaleDateString(L()) + '</p>';
+      var weekly = d.weeklyMissions.map(function (m) { var done = m.progress >= m.target; return '<div class="rule"><span>' + esc(m.label) + ' · ' + m.progress + '/' + m.target + '</span>' + (m.claimed ? '<span class="status st-sent">Réclamée</span>' : (done ? '<button class="btn btn-small" data-feature-mission="' + esc(m.id) + '">Réclamer</button>' : '<span class="muted small">En cours</span>')) + '</div>'; }).join('');
+      var achievements = d.achievements.length ? d.achievements.map(function (a) { return '<span class="status st-approved">🏆 ' + esc(a.achievement_id) + '</span>'; }).join(' ') : '<span class="muted small">Aucun achievement débloqué.</span>';
+      el.innerHTML = '<h3>Progression &amp; récompenses</h3><p><b>' + d.economy.gems + '</b> gems · <b>' + d.economy.materials + '</b> matériaux</p><h4>Calendrier quotidien</h4>' + days + '<h4>Battle Pass gratuit</h4>' + pass + '<h4>Missions hebdomadaires</h4>' + weekly + '<h4>Achievements</h4><p>' + achievements + '</p><p class="muted small">Les achats Premium et les paiements restent désactivés jusqu’à configuration approuvée.</p>';
+    } catch (e) { el.innerHTML = '<h3>Progression &amp; récompenses</h3><p class="err-txt small">' + esc(errMsg(e)) + '</p>'; }
+  }
   async function renderRewards() {
     renderWallet();
     renderOnchain();
+    renderShop();
+    renderPlatformFeatures();
     var sess = W.getSession();
     var mineEl = $('#my-rewards'), lbEl = $('#players-lb');
     if (!W.apiEnabled()) {
@@ -1113,6 +1144,20 @@
       if (cl) {
         cl.disabled = true;
         try { var r = await W.api('/api/rewards/' + encodeURIComponent(cl.getAttribute('data-claim')) + '/claim', { method: 'POST', body: {} }); toast('Demande envoyée : NFT #' + String(r.tokenId).padStart(4, '0') + ' réservé, en attente de validation.'); }
+        catch (err) { toast(errMsg(err)); }
+        renderRewards(); return;
+      }
+      var daily = e.target.closest('[data-feature-daily]');
+      if (daily) {
+        daily.disabled = true;
+        try { var dr = await W.api('/api/features/daily/claim', { method: 'POST', body: {} }); toast(dr.claimed ? 'Récompense quotidienne ajoutée.' : 'Récompense déjà réclamée.'); }
+        catch (err) { toast(errMsg(err)); }
+        renderRewards(); return;
+      }
+      var mission = e.target.closest('[data-feature-mission]');
+      if (mission) {
+        mission.disabled = true;
+        try { var mr = await W.api('/api/features/missions/claim', { method: 'POST', body: { missionId: mission.getAttribute('data-feature-mission') } }); toast(mr.claimed ? 'Récompense hebdomadaire ajoutée.' : 'Mission déjà réclamée.'); }
         catch (err) { toast(errMsg(err)); }
         renderRewards(); return;
       }

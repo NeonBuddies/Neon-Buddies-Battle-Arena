@@ -8,6 +8,7 @@ import {
   isAddress, lower, hashPersonalMessage, encodeSafeTransferFrom, encodeOwnerOf, encodeIsValidSignature,
   is1271Magic, addrTopic, uintTopic, TRANSFER_TOPIC, randomHex, sha256Hex
 } from './crypto.js';
+import { claimDaily, claimPass, testPurchase, updateProfile, evolveCharacter, registerTournament, recordBattleProgress, claimMission, featureSnapshot, createGuild, inviteGuildMember, decideGuildInvite, guildChat, adminDashboard } from './platform.js';
 
 const NONCE_TTL = 5 * 60 * 1000;
 const SESSION_TTL = 7 * 24 * 3600 * 1000;
@@ -334,6 +335,7 @@ async function recordMatches(env, ctx, address, p, matches, opts) {
 
 async function settleProgress(env, ctx, book, playerRow) {
   const after = playerRow || await getPlayer(env, book.address);
+  const platformProgress = await recordBattleProgress(env, book.address, book.matches, after, book.opts.mode || 'duel');
   const won = book.matches[book.matches.length - 1].result.winner === 'A';
   if (won && env.TELEGRAM_NOTIFY_VICTORIES === '1') {
     await notify(env, ctx, 'victory', `⚔️ Victoire${book.opts.mode && book.opts.mode !== 'duel' ? ' (' + book.opts.mode + ')' : ''} de ${after.name ? after.name + ' (' + short(after.address) + ')' : short(after.address)} : ${book.last.name} bat ${book.matches[book.matches.length - 1].result.fighters.B.name} (+${book.gained} pts, série ${after.streak}).`,
@@ -341,7 +343,7 @@ async function settleProgress(env, ctx, book, playerRow) {
   }
   const newRewards = await grantEligible(env, ctx, after);
   return {
-    summary: Object.assign({}, book.summary, { points: book.gained, battlePoints: book.battlePts, capped: book.capped < book.battlePts }),
+    summary: Object.assign({}, book.summary, { points: book.gained, battlePoints: book.battlePts, capped: book.capped < book.battlePts, battlePassXp: platformProgress.xp }),
     missionsCompleted: book.completed, missions: missionView(book.mState, book.day), profile: publicProfile(after, env), newRewards
   };
 }
@@ -779,6 +781,7 @@ async function route(req, env, ctx) {
   const url = new URL(req.url), path = url.pathname.replace(/\/+$/, ''), m = req.method;
   const c = cfg(env);
   const ip = req.headers.get('CF-Connecting-IP') || 'local';
+  let mm;
   if (!c.admin || !isAddress(c.admin)) throw new HttpError(500, 'ADMIN_ADDRESS non configurée');
 
   if (m === 'POST' && path === '/telegram/webhook') return telegramWebhook(req, env, ctx);
@@ -875,7 +878,67 @@ async function route(req, env, ctx) {
   if (m === 'GET' && path === '/api/shop') {
     await rateLimit(env, 'shop:' + ip, 60, 60);
     const shop = live.shop();
-    return Object.assign({}, shop, { payments: 'off', checkout: false, products: shop.products.map(p => Object.assign({}, p, { purchasable: false })) });
+    const c = cfg(env), testMode = env.SHOP_TEST_MODE === '1';
+    return Object.assign({}, shop, { payments: testMode ? 'test-free' : (c.paymentsEnabled ? 'crypto-prepared' : 'off'), checkout: false, realPayments: false, testMode, products: shop.products.map(p => Object.assign({}, p, { purchasable: testMode && p.testOnly === true })) });
+  }
+  if (m === 'POST' && path === '/api/shop/test-order') {
+    if (env.SHOP_TEST_MODE !== '1') throw new HttpError(404, 'Boutique de test désactivée');
+    const s = await auth(req, env), b = await body(req);
+    try { return await testPurchase(env, s.address, b.productId); }
+    catch (e) { throw new HttpError(400, e.message || 'Commande de test impossible'); }
+  }
+  if (m === 'GET' && path === '/api/features') {
+    const s = await auth(req, env);
+    return featureSnapshot(env, s.address);
+  }
+  if (m === 'POST' && path === '/api/features/daily/claim') {
+    const s = await auth(req, env);
+    return claimDaily(env, s.address);
+  }
+  if (m === 'POST' && path === '/api/features/battle-pass/claim') {
+    const s = await auth(req, env), b = await body(req);
+    try { return await claimPass(env, s.address, String(b.track || ''), Number(b.level)); }
+    catch (e) { throw new HttpError(400, e.message || 'Réclamation Battle Pass impossible'); }
+  }
+  if (m === 'POST' && path === '/api/features/profile') {
+    const s = await auth(req, env), b = await body(req);
+    try { return await updateProfile(env, s.address, b); }
+    catch (e) { throw new HttpError(400, e.message || 'Profil invalide'); }
+  }
+  if (m === 'POST' && path === '/api/features/evolution') {
+    const s = await auth(req, env), b = await body(req);
+    try { return await evolveCharacter(env, s.address, b.charId); }
+    catch (e) { throw new HttpError(400, e.message || 'Évolution impossible'); }
+  }
+  if (m === 'POST' && path === '/api/features/tournaments/register') {
+    const s = await auth(req, env), b = await body(req);
+    try { return await registerTournament(env, s.address, b.fighterId, b.type); }
+    catch (e) { throw new HttpError(400, e.message || 'Inscription impossible'); }
+  }
+  if (m === 'POST' && path === '/api/features/missions/claim') {
+    const s = await auth(req, env), b = await body(req);
+    try { return await claimMission(env, s.address, b.missionId); }
+    catch (e) { throw new HttpError(400, e.message || 'Mission non réclamable'); }
+  }
+  if (m === 'POST' && path === '/api/features/guilds') {
+    const s = await auth(req, env), b = await body(req);
+    try { return await createGuild(env, s.address, b); }
+    catch (e) { throw new HttpError(400, e.message || 'Création de guilde impossible'); }
+  }
+  if (m === 'POST' && (mm = path.match(/^\/api\/features\/guilds\/([^/]+)\/invite$/))) {
+    const s = await auth(req, env), b = await body(req);
+    try { return await inviteGuildMember(env, s.address, decodeURIComponent(mm[1]), b.address); }
+    catch (e) { throw new HttpError(400, e.message || 'Invitation impossible'); }
+  }
+  if (m === 'POST' && (mm = path.match(/^\/api\/features\/guilds\/([^/]+)\/invite\/decision$/))) {
+    const s = await auth(req, env), b = await body(req);
+    try { return await decideGuildInvite(env, s.address, decodeURIComponent(mm[1]), b.decision); }
+    catch (e) { throw new HttpError(400, e.message || 'Décision impossible'); }
+  }
+  if (m === 'POST' && (mm = path.match(/^\/api\/features\/guilds\/([^/]+)\/messages$/))) {
+    const s = await auth(req, env), b = await body(req);
+    try { return await guildChat(env, s.address, decodeURIComponent(mm[1]), b); }
+    catch (e) { throw new HttpError(400, e.message || 'Message refusé'); }
   }
   if (m === 'GET' && path === '/api/starter') return live.starter(env, await auth(req, env));
   if (m === 'POST' && path === '/api/starter') return live.chooseStarter(req, env, await auth(req, env));
@@ -902,11 +965,11 @@ async function route(req, env, ctx) {
   }
   if (m === 'POST' && path === '/api/pvp/leave') { const s0 = await auth(req, env); await env.DB.prepare('DELETE FROM pvp_queue WHERE address = ?1 AND match_id IS NULL').bind(s0.address).run(); return { ok: true }; }
 
-  let mm;
   if (m === 'POST' && (mm = path.match(/^\/api\/rewards\/([^/]+)\/claim$/))) return claim(env, ctx, await auth(req, env), decodeURIComponent(mm[1]));
 
   if (path.startsWith('/api/admin/')) {
     const s = await auth(req, env, true);
+    if (m === 'GET' && path === '/api/admin/dashboard') return adminDashboard(env);
     if (m === 'GET' && path === '/api/admin/summary') {
       const counts = await env.DB.prepare('SELECT status, COUNT(*) AS n FROM rewards GROUP BY status').all();
       const notes = await env.DB.prepare('SELECT id, kind, text, created_at, seen FROM notifications ORDER BY id DESC LIMIT 30').all();

@@ -32,6 +32,8 @@ CHECK_ONCHAIN = "1"
 REAL_CLAIMS = "0"
 # Encaissement : "0". Aucun Paddle, PayPal ou crypto. Ne pas passer à "1" dans ce déploiement.
 PAYMENTS_ENABLED = "0"
+# Boutique gratuite de test : uniquement pour valider le parcours, aucun ETH.
+SHOP_TEST_MODE = "1"
 # URL publique du jeu (liens Telegram).
 PUBLIC_SITE_URL = "https://neonbuddies.github.io/Neon-Buddies-Battle-Arena/"
 # Notifications Telegram de victoires (1 = oui), au plus une toutes les VICTORY_NOTIFY_INTERVAL_SEC secondes
