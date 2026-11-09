@@ -4,7 +4,7 @@
 import E from '../../js/engine.js';
 import { CHAIN_ID, NFT_CONTRACT, TIERS, TIER_FR, REWARD_RULES, rewardStock, COLLECTION } from './config.js';
 import {
-  isAddress, lower, recoverAddress, hashPersonalMessage, encodeSafeTransferFrom, encodeOwnerOf, encodeIsValidSignature,
+  isAddress, lower, hashPersonalMessage, encodeSafeTransferFrom, encodeOwnerOf, encodeIsValidSignature,
   is1271Magic, addrTopic, uintTopic, TRANSFER_TOPIC, randomHex, sha256Hex
 } from './crypto.js';
 
@@ -122,9 +122,11 @@ function buildMessage(domain, uri, address, nonce, chainId, issued, expires) {
     `URI: ${uri}\nVersion: 1\nChain ID: ${chainId}\nNonce: ${nonce}\nIssued At: ${issued}\nExpiration Time: ${expires}`;
 }
 
+let recoverAddress = null;
 async function verifySignature(env, address, message, signature) {
   // EOA, y compris un compte EIP-7702 dont la clé signe un personal_sign : la récupération doit redonner CETTE adresse.
-  // L'égalité d'adresse sans signature valide ne suffit jamais.
+  // L'égalité d'adresse sans signature valide ne suffit jamais. La courbe n'est chargée qu'ici.
+  if (!recoverAddress) recoverAddress = (await import('./ecdsa.js')).recoverAddress;
   const rec = recoverAddress(message, signature);
   if (rec && lower(rec) === lower(address)) return true;
   // Compte avec du code (contrat ou délégation EIP-7702 0xef0100…) : ERC-1271, échec fermé.
@@ -178,15 +180,22 @@ async function grantEligible(env, ctx, p) {
   const test = p.test_mode ? 1 : 0;
   // Le fondateur détient déjà le stock : pas de récompense réelle pour lui (le mode test reste possible).
   if (!test && isFounder(env, p.address)) return fresh;
+  const pending = [];
+  const stmts = [];
   for (const rule of REWARD_RULES) {
     if ((p[rule.stat] || 0) < rule.value) continue;
     const id = (test ? 'test:' : '') + rule.id + ':' + p.address;
-    const r = await env.DB.prepare('INSERT OR IGNORE INTO rewards (id, address, rule_id, tier, label, earned_at, is_test) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
-      .bind(id, p.address, rule.id, rule.tier, rule.label, Date.now(), test).run();
-    if (r.meta.changes) {
-      fresh.push({ id, tier: rule.tier, tierFr: TIER_FR[rule.tier], label: rule.label, test: !!test });
-      await notify(env, ctx, 'earned', `${test ? '[TEST] ' : ''}🏆 ${short(p.address)} a gagné une récompense NFT ${TIER_FR[rule.tier]} (« ${rule.label} »). Elle pourra être réclamée puis validée dans l’espace admin.`);
-    }
+    pending.push({ id, rule });
+    stmts.push(env.DB.prepare('INSERT OR IGNORE INTO rewards (id, address, rule_id, tier, label, earned_at, is_test) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
+      .bind(id, p.address, rule.id, rule.tier, rule.label, Date.now(), test));
+  }
+  if (!stmts.length) return fresh;
+  const written = await env.DB.batch(stmts);
+  for (let i = 0; i < pending.length; i++) {
+    if (!(written[i].meta && written[i].meta.changes)) continue;
+    const rule = pending[i].rule;
+    fresh.push({ id: pending[i].id, tier: rule.tier, tierFr: TIER_FR[rule.tier], label: rule.label, test: !!test });
+    await notify(env, ctx, 'earned', `${test ? '[TEST] ' : ''}🏆 ${short(p.address)} a gagné une récompense NFT ${TIER_FR[rule.tier]} (« ${rule.label} »). Elle pourra être réclamée puis validée dans l’espace admin.`);
   }
   return fresh;
 }
@@ -202,25 +211,26 @@ async function fightLock(env, ctx, address) {
   try { await rateLimit(env, 'fightmin:' + address, 30, 60); }
   catch (e) { await alertSuspicious(env, ctx, 'fight:' + address, `Activité suspecte : ${short(address)} dépasse la limite de combats par minute.`); throw e; }
   const now = Date.now(), day = E.dayKey(now);
-  await getPlayer(env, address);
-  const lock = await env.DB.prepare('UPDATE players SET last_fight_at = ?1 WHERE address = ?2 AND last_fight_at <= ?3')
-    .bind(now, address, now - c.fightInterval).run();
-  if (!lock.meta.changes) {
+  await env.DB.prepare('INSERT OR IGNORE INTO players (address, created_at) VALUES (?1, ?2)').bind(address, now).run();
+  const p = await env.DB.prepare('UPDATE players SET last_fight_at = ?1 WHERE address = ?2 AND last_fight_at <= ?3 RETURNING *')
+    .bind(now, address, now - c.fightInterval).first();
+  if (!p) {
     await rateLimit(env, 'fastfight:' + address, 1e9, 60).catch(() => {});
     const n = await env.DB.prepare('SELECT n FROM rate_limits WHERE key = ?1').bind('fastfight:' + address).first();
     if (n && n.n >= 10) await alertSuspicious(env, ctx, 'fast:' + address, `Anti-triche : ${short(address)} envoie des combats trop rapprochés (${n.n} refus en 1 min).`);
     throw new HttpError(429, 'Patiente un instant avant le prochain combat.');
   }
-  const p = await getPlayer(env, address);
   if ((p.day === day ? p.day_fights : 0) >= c.maxFightsDay) throw new HttpError(429, 'Limite quotidienne de combats classés atteinte.');
   return p;
 }
 async function loadChars(env, address, ids) {
   const chars = {};
-  for (const id of ids) {
-    const r = await env.DB.prepare('SELECT xp, wins, losses FROM char_progress WHERE address = ?1 AND char_id = ?2').bind(address, id).first();
-    if (r) chars[id] = { xp: r.xp, wins: r.wins, losses: r.losses };
-  }
+  const uniq = [...new Set(ids)];
+  if (!uniq.length) return chars;
+  const marks = uniq.map((_, i) => '?' + (i + 2)).join(',');
+  const rows = await env.DB.prepare('SELECT char_id, xp, wins, losses FROM char_progress WHERE address = ?1 AND char_id IN (' + marks + ')')
+    .bind(address, ...uniq).all();
+  for (const r of rows.results) chars[r.char_id] = { xp: r.xp, wins: r.wins, losses: r.losses };
   return chars;
 }
 const lvOf = (chars, id) => E.levelFromXp((chars[id] || {}).xp || 0).level;
@@ -283,8 +293,11 @@ async function recordMatches(env, ctx, address, p, matches, opts) {
   const c = cfg(env), now = Date.now(), day = E.dayKey(now);
   p = p || await getPlayer(env, address);
   const ids = []; matches.forEach(m => { ids.push(m.result.fighters.A.id); if (m.persistOpp) ids.push(m.result.fighters.B.id); });
-  let prog = { profile: { points: p.points, wins: p.wins, losses: p.losses, battles: p.battles, streak: p.streak, bestStreak: p.best_streak }, chars: await loadChars(env, address, ids), history: [] };
-  const mrow = await env.DB.prepare('SELECT state FROM missions WHERE address = ?1 AND day = ?2').bind(address, day).first();
+  const [chars, mrow] = await Promise.all([
+    opts.knownChars ? opts.knownChars : loadChars(env, address, ids),
+    env.DB.prepare('SELECT state FROM missions WHERE address = ?1 AND day = ?2').bind(address, day).first()
+  ]);
+  let prog = { profile: { points: p.points, wins: p.wins, losses: p.losses, battles: p.battles, streak: p.streak, bestStreak: p.best_streak }, chars, history: [] };
   let mState = mrow ? JSON.parse(mrow.state) : null, bonus = 0, completed = [], battlePts = 0, legendWins = 0, summary = null;
   for (const m of matches) {
     const applied = E.applyBattleResult(prog, m.result);
@@ -350,7 +363,7 @@ async function fight(req, env, ctx, sess) {
   const seed = rand32();
   const result = E.simulateBattle(a, lvA, opp, lvB, seed, diff ? { scaleB: diff.scale } : undefined);
   if (diff) result.fighters.B.bot = true;
-  const out = await recordMatches(env, ctx, sess.address, p, [{ result, seed, persistOpp: !diff }], { mode, mult: diff ? diff.points : 1 });
+  const out = await recordMatches(env, ctx, sess.address, p, [{ result, seed, persistOpp: !diff }], { mode, mult: diff ? diff.points : 1, knownChars: chars });
   return Object.assign({ seed, result, mode, difficulty: diff ? diff.id : null }, out);
 }
 
@@ -367,7 +380,7 @@ async function bossFight(req, env, ctx, sess) {
   const chars = await loadChars(env, sess.address, [a.id]);
   const lvA = lvOf(chars, a.id), seed = rand32();
   const result = E.simulateBattle(a, lvA, E.bossCharacter(boss, COLLECTION), E.bossLevel(lvA), seed, { boss });
-  const out = await recordMatches(env, ctx, sess.address, p, [{ result, seed, persistOpp: false }], { mode: 'boss', points: E.bossPoints(result) });
+  const out = await recordMatches(env, ctx, sess.address, p, [{ result, seed, persistOpp: false }], { mode: 'boss', points: E.bossPoints(result), knownChars: chars });
   return Object.assign({ seed, result, mode: 'boss', boss: { id: boss.id, name: boss.name, baseId: boss.baseId }, attemptsLeft: max - used.n - 1 }, out);
 }
 async function bossInfo(env, sess) {
@@ -409,7 +422,7 @@ async function tournament(req, env, ctx, sess) {
     if (m.a !== me && m.b !== me) return;
     matches.push({ result: m.a === me ? m.result : E.flipResult(m.result), seed });
   }));
-  const out = await recordMatches(env, ctx, sess.address, p, matches, { mode: 'tournoi', points });
+  const out = await recordMatches(env, ctx, sess.address, p, matches, { mode: 'tournoi', points, knownChars: chars });
   const bracket = { rounds: t.rounds.map(r => ({ name: r.name, matches: r.matches.map(m => ({ a: m.a, b: m.b, winner: m.winner, turns: m.turns })) })), entrants: t.entrants, champion: t.champion, me };
   await env.DB.prepare('INSERT INTO tournaments (address, day, placement, points, bracket, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)').bind(sess.address, day, placement, points, JSON.stringify(bracket), Date.now()).run();
   return Object.assign({ seed, mode: 'tournoi', placement, tournamentPoints: points, bracket, matches: matches.map(m => m.result), result: matches[matches.length - 1].result }, out);
@@ -439,8 +452,10 @@ async function tryPair(env, ctx, sess, fighterId) {
   const p1 = await getPlayer(env, cand.address), p2 = await getPlayer(env, sess.address);
   result.fighters.A.owner = p1.name || short(p1.address); result.fighters.B.owner = p2.name || short(p2.address);
   const e = E.elo(p1.rating, p2.rating, result.winner === 'A' ? 1 : 0);
-  const book1 = await recordMatches(env, ctx, cand.address, p1, [{ result, seed, persistOpp: false }], { mode: 'pvp', defer: true });
-  const book2 = await recordMatches(env, ctx, sess.address, p2, [{ result: E.flipResult(result), seed, persistOpp: false }], { mode: 'pvp', defer: true });
+  const [book1, book2] = await Promise.all([
+    recordMatches(env, ctx, cand.address, p1, [{ result, seed, persistOpp: false }], { mode: 'pvp', defer: true, knownChars: c1 }),
+    recordMatches(env, ctx, sess.address, p2, [{ result: E.flipResult(result), seed, persistOpp: false }], { mode: 'pvp', defer: true, knownChars: c2 })
+  ]);
   await commitProgress(env, [book1, book2], [
     env.DB.prepare('UPDATE players SET rating = ?1, pvp_wins = pvp_wins + ?2, pvp_losses = pvp_losses + ?3 WHERE address = ?4').bind(e.a, result.winner === 'A' ? 1 : 0, result.winner === 'A' ? 0 : 1, cand.address),
     env.DB.prepare('UPDATE players SET rating = ?1, pvp_wins = pvp_wins + ?2, pvp_losses = pvp_losses + ?3 WHERE address = ?4').bind(e.b, result.winner === 'B' ? 1 : 0, result.winner === 'B' ? 0 : 1, sess.address),

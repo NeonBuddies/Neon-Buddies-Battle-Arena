@@ -58,11 +58,16 @@
   }
 
   /** Stats de base déterministes à partir de l'id, des traits et de la rareté. */
+  var baseStatsCache = new Map();
   function baseStats(ch) {
     var rarity = normRarity(ch.rarity);
     var traits = ch.traits || {};
     var keys = Object.keys(traits).sort();
-    var seedStr = String(ch.id) + '|' + keys.map(function (k) { return k + '=' + traits[k]; }).join('|') + '|' + (ch.name || '');
+    var traitKey = keys.map(function (k) { return k + '=' + traits[k]; }).join('|');
+    var cacheKey = String(ch.id) + '|' + rarity + '|' + (ch.name || '') + '|' + traitKey;
+    var cached = baseStatsCache.get(cacheKey);
+    if (cached) return cached;
+    var seedStr = String(ch.id) + '|' + traitKey + '|' + (ch.name || '');
     var r = rng(hash(seedStr));
     var m = RARITY_MULT[rarity];
     var s = {
@@ -76,13 +81,15 @@
     s.hp += [0, 4, 8, 14][tier]; s.atk += [0, 1, 2, 3][tier]; s.def += [0, 0, 1, 2][tier];
     var fb = FAMILY_BONUS[traits.famille] || {};
     Object.keys(fb).forEach(function (k) { s[k] += fb[k]; });
-    return {
+    var out = {
       hp: Math.round(s.hp * m),
       atk: Math.round(s.atk * m),
       def: Math.round(s.def * m),
       spd: Math.round(s.spd * (1 + (m - 1) / 2)),
       crit: Math.min(40, Math.round(s.crit + (m - 1) * 20))
     };
+    baseStatsCache.set(cacheKey, out);
+    return out;
   }
 
   /** XP nécessaire pour passer du niveau L au niveau L+1. */
@@ -200,10 +207,23 @@
   /** Inverse le point de vue d'un combat (A <-> B), pour que chaque joueur PvP se voie à gauche. */
   function flipResult(res) {
     var sw = function (x) { return x === 'A' ? 'B' : x === 'B' ? 'A' : x; };
-    var o = JSON.parse(JSON.stringify(res));
-    o.winner = sw(o.winner);
-    o.fighters = { A: Object.assign(o.fighters.B, { side: 'A' }), B: Object.assign(o.fighters.A, { side: 'B' }) };
-    o.events.forEach(function (ev) { ['attacker', 'defender', 'first', 'winner', 'side'].forEach(function (k) { if (ev[k]) ev[k] = sw(ev[k]); }); });
+    function copyFighter(f, side) {
+      var o = {};
+      for (var k in f) o[k] = k === 'stats' ? Object.assign({}, f.stats) : f[k];
+      o.side = side;
+      return o;
+    }
+    var events = res.events.map(function (ev) {
+      var o = {};
+      for (var k in ev) o[k] = ev[k];
+      ['attacker', 'defender', 'first', 'winner', 'side'].forEach(function (k) { if (o[k]) o[k] = sw(o[k]); });
+      return o;
+    });
+    var o = {};
+    for (var k in res) o[k] = res[k];
+    o.winner = sw(res.winner);
+    o.fighters = { A: copyFighter(res.fighters.B, 'A'), B: copyFighter(res.fighters.A, 'B') };
+    o.events = events;
     return o;
   }
 

@@ -1,6 +1,6 @@
 # Tests — NEON BUDDIES — NFT BATTLE ARENA
 
-Revue du 9 novembre 2026, deuxième passage sur le même code. Seuls les contrôles **relancés** ci-dessous sont des résultats. Rien ici n’est un audit.
+Revue du 9 novembre 2026. Dernier passage : réduction du CPU (moins d’allers-retours D1, secp256k1 chargé seulement à la connexion), puis relance des tests. Rien ici n’est un audit, et un chrono Node n’est pas le CPU Cloudflare.
 
 Un ancien rapport contenait une ligne parasite « failing tests ». Le journal `tests/e2e-web3-resultats.txt` n’est plus écrit : il présentait une émulation Chromium comme un téléphone Android. Le résultat du navigateur est dans cette page.
 
@@ -35,10 +35,19 @@ Les 40 assertions couvrent le lien MetaMask, le RPC réel, le débordement du vi
 
 Statique (`index.html`, `regles.html`) puis parcours Chromium bureau et mobile en anglais. Pas un appareil Android.
 
-### Bench signature — machine locale, pas le compteur CPU Cloudflare
+### Bench local — pas le CPU Cloudflare
 
-30 récupérations ECDSA après échauffement : médiane 1,43 ms, p95 2,36 ms, max 2,95 ms.  
-`crypto.subtle` ECDSA : P-256 oui, **secp256k1 non**. La limite gratuite de 10 ms de CPU n’a pas été mesurée dans un isolate de production.
+Node, `performance.now`, après les changements de ce passage :
+
+- import moteur + collection : 1,5 ms
+- premier import secp256k1 : 16,5 ms
+- récupération ECDSA chaude : médiane 1,6 ms (p95 d’un petit échantillon jusqu’à ~23 ms)
+- un combat : médiane 0,02 ms (21 événements, JSON ~4 Ko)
+- tournoi 7 matchs : médiane 0,09 ms
+- boss : médiane 0,03 ms
+- inversion PvP : médiane 0,01 ms
+
+`crypto.subtle` ECDSA : P-256 oui, **secp256k1 non** (bench précédent). Ces chiffres ne sont pas le compteur CPU de Cloudflare. Le passage production cité dans le README (combat 17–18 ms, connexion 16 ms, froid 64–85 ms) reste la référence tant que le parent n’a pas redéployé cette version.
 
 ## Non fait — ne pas le compter comme un succès
 
