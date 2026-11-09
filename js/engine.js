@@ -422,7 +422,7 @@
   }
 
   /* ---------- Combat manuel : le joueur déclenche attaque et sort ---------- */
-  var MANUAL = { MIN_MS: 150000, MAX_EXTRA_MS: 60000, MIN_ACTIVE_WINDOWS: 3, ATTACK_CD: 4000, SPELL_CD: 14000, NPC_CD: 4500, HIT_FRAC: 0.02 };
+  var MANUAL = { MIN_MS: 150000, MAX_EXTRA_MS: 60000, MIN_ACTIONS: 3, ATTACK_CD: 4000, SPELL_CD: 14000, NPC_CD: 4500, HIT_FRAC: 0.02 };
   var SPELL_BY_FAMILY = {
     'Robot Couronne': { key: 'brise', title: 'Couronne', mult: 1.25, ignoreDef: 0.35, blurb: 'Ignore 35 % de la défense.' },
     'Lapin Pastel': { key: 'siphon', title: 'Pastel', mult: 1.1, healOfDmg: 0.2, blurb: 'Dégâts ×1,10 et soin de 20 % des dégâts.' },
@@ -480,7 +480,7 @@
       boss: opts.boss ? { id: opts.boss.id, phases: opts.boss.phases, phase: 0 } : null,
       A: bootFighter(A, now), B: bootFighter(B, now + 1500),
       events: [{ type: 'start', text: A.name + ' entre dans l’arène. Le combat commence automatiquement.' }],
-      playerActions: 0, damageToB: 0, winner: null, forfeit: false
+      playerActions: 0, damageToB: 0, damageMult: opts.damageMult || 1, winner: null, forfeit: false
     };
   }
   function pushEvent(state, ev) {
@@ -497,7 +497,7 @@
     var defStat = Math.max(1, def.stats.def * (1 - (spell ? spell.ignoreDef || 0 : 0)));
     var ratio = Math.max(0.7, Math.min(1.45, att.stats.atk / defStat));
     var mult = spell ? spell.mult : 1;
-    var frac = MANUAL.HIT_FRAC * variance * ratio * mult * (crit ? 1.35 : 1);
+    var frac = MANUAL.HIT_FRAC * (state.damageMult || 1) * variance * ratio * mult * (crit ? 1.35 : 1);
     var dmg = Math.max(1, Math.round(def.maxHp * frac));
     if (spell && spell.burnFrac) dmg += Math.max(1, Math.round(def.maxHp * spell.burnFrac));
     var absorbed = 0;
@@ -549,14 +549,8 @@
     pushEvent(state, { type: 'end', winner: winner, text: state.forfeit ? 'Actions insuffisantes : pas de victoire ni de points.' : w.name + ' remporte le combat !' });
   }
   function isEngaged(state) {
-    if (state.playerActions < 1) return false;
     if (state.minMs < 150000) return true;
-    var need = Math.min(Math.ceil(state.minMs / 30000), MANUAL.MIN_ACTIVE_WINDOWS), seen = {};
-    state.A.actionTimes.forEach(function (t) {
-      var b = Math.floor((t - state.startedAt) / 30000);
-      if (b >= 0 && b < need) seen[b] = 1;
-    });
-    return Object.keys(seen).length >= need;
+    return state.playerActions >= MANUAL.MIN_ACTIONS;
   }
   function catchUpNpc(state, now) {
     var guard = 0;

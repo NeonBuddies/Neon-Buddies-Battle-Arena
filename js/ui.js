@@ -348,7 +348,7 @@
       }
       if (!online) {
         if (m === 'boss' && localBossLeft() <= 0) { toast('Tentatives contre le boss épuisées pour aujourd’hui. Reviens demain !'); return; }
-        var opp, lvB, opts = { now: Date.now(), minMs: manualClockMs(), mode: m, difficulty: m === 'solo' ? diff.id : null };
+        var opp, lvB, opts = { now: Date.now(), minMs: manualClockMs(), mode: m, difficulty: m === 'solo' ? diff.id : null, damageMult: 6 };
         if (m === 'duel') { opp = b; lvB = prog(b.id).level; }
         else if (m === 'boss') { var boss = bossToday(); opp = E.bossCharacter(boss, window.NB_COLLECTION); lvB = E.bossLevel(prog(a.id).level); opts.boss = boss; }
         else { opp = randomChar(a.id); lvB = E.botLevel(diff.id, prog(a.id).level); opts.scaleB = diff.scale; }
@@ -356,8 +356,8 @@
         var foeL = m === 'duel' ? b : (m === 'boss' ? bossView(bossToday()) : opp);
         // Tous les combats locaux sont automatiques : les deux personnages jouent
         // et s'infligent leurs dégâts sans attendre une action manuelle.
-        var quick = false;
-        ui.battle = { manual: true, ranked: false, quick: quick, quickNow: Date.now(), state: state, view: E.manualView(state, Date.now()), a: a, b: foeL, extra: extra, diff: diff, timers: [], speed: 4, done: false };
+        var quick = false, auto = true;
+        ui.battle = { manual: true, ranked: false, quick: quick, auto: auto, quickNow: Date.now(), state: state, view: E.manualView(state, Date.now()), a: a, b: foeL, extra: extra, diff: diff, timers: [], speed: 1, done: false };
         openManual(ui.battle);
         localLoop();
       }
@@ -366,7 +366,7 @@
   function openManual(bt) {
     if (location.hash !== '#arene') { history.replaceState(null, '', '#arene'); route(); }
     $('#arena-setup').hidden = true; $('#arena-fight').hidden = false; $('#pvp-wait').hidden = true; $('#result').hidden = true;
-    var controls = $('#fight-controls'); if (controls) controls.hidden = false;
+    var controls = $('#fight-controls'); if (controls) controls.hidden = !!bt.auto && !bt.ranked;
     $('#battle-log').innerHTML = '';
     drawFighter('A', bt.a, { level: 1, maxHp: bt.view.you.maxHp, hp: bt.view.you.hp });
     drawFighter('B', bt.b, { level: 1, maxHp: bt.view.foe.maxHp, hp: bt.view.foe.hp });
@@ -406,6 +406,10 @@
       return commitManual(bt, null);
     }
     var now = bt.quick ? (bt.quickNow += 500) : manualNow(bt.state);
+    if (bt.auto && bt.state.status === 'active') {
+      var autoAction = E.manualAct(bt.state, 'attack', now, bt.state.seq + 1);
+      if (autoAction.ok) bt.state = autoAction.state;
+    }
     var ticked = E.manualTick(bt.state, now);
     ticked._testNow = bt.state._testNow;
     var fin = E.manualFinish(ticked, now);
