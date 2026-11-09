@@ -396,7 +396,9 @@
       var fastNow = bt.quickNow || Date.now(), fast = bt.state;
       for (var i = 0; i < 1000 && fast.status === 'active'; i++) {
         fastNow += 1000;
-        fast = E.manualTick(fast, fastNow);
+        var autoAction = E.manualAct(fast, 'attack', fastNow, fast.seq + 1);
+        if (autoAction.ok) fast = autoAction.state;
+        if (fast.status === 'active') fast = E.manualTick(fast, fastNow);
         fast._testNow = fastNow;
       }
       bt.quickNow = fastNow; bt.state = fast; bt.view = E.manualView(fast, fastNow); paintManual();
