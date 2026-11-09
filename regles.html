@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07020f">
+  <title>Règlement des récompenses — NEON BUDDIES — NFT BATTLE ARENA</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/i18n.js"></script>
+  <style>body{padding-bottom:0} .rules{max-width:820px;margin:0 auto;padding:24px 18px 60px;line-height:1.6} .rules h1{font-size:clamp(24px,5vw,36px)} .rules h2{color:var(--pink2);font-size:18px;margin-top:28px} .rules li{margin:4px 0} .rules-top{display:flex;justify-content:space-between;align-items:center} table{border-collapse:collapse;width:100%;font-size:14px} td,th{border:1px solid var(--line);padding:8px;text-align:left}</style>
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <main class="rules">
+    <p class="rules-top"><a href="index.html">← Retour au jeu</a><span class="lang-toggle" role="group" aria-label="Langue" translate="no"><button type="button" data-lang="fr" lang="fr">FR</button><button type="button" data-lang="en" lang="en">EN</button></span></p>
+    <h1>Règlement des récompenses NFT</h1>
+    <p class="muted" data-i18n-html>NEON BUDDIES — NFT BATTLE ARENA · version 1 · Collection Neon Buddies 2 (Robinhood Chain, contrat <code class="contract">0x3aFaFa532c6Ea72ad5533A5aeEb409276ACC0aFc</code>)</p>
+
+    <h2>1. Principe</h2>
+    <ul>
+      <li data-i18n-html>Le jeu est <b>gratuit</b>. <b>Aucun achat, aucun paiement et aucune mise</b> ne sont nécessaires pour jouer ni pour obtenir une récompense.</li>
+      <li data-i18n-html>Les récompenses sont attribuées selon les <b>résultats en jeu</b> (habileté et régularité : choix des combattants, progression des personnages, séries de victoires), jamais par tirage au sort payant.</li>
+      <li data-i18n-html>Les récompenses sont des NFT de la collection Neon Buddies 2 détenus par l’organisateur et envoyés <b>manuellement</b> après vérification.</li>
+      <li>Aucune valeur financière n’est promise. Un NFT n’est pas un placement.</li>
+    </ul>
+
+    <h2>2. Participation</h2>
+    <ul>
+      <li>Les combats classés nécessitent un wallet compatible (MetaMask ou équivalent) et une connexion par signature d’un message. Cette signature ne déclenche aucune transaction, ne coûte aucun frais et ne donne aucune autorisation sur tes NFT.</li>
+      <li>Sur Android, ouvre l’adresse HTTPS publique du jeu dans l’application MetaMask, pas une adresse localhost. Choisis Robinhood Chain (identifiant 4663) puis signe le message.</li>
+      <li>Tant que le serveur est hors ligne, ou tant que les réclamations réelles sont désactivées, aucun NFT n’est réservé ni envoyé. Le jeu local ne prépare aucune transaction.</li>
+      <li>Une seule participation par personne. L’utilisation de plusieurs wallets, de robots, de scripts ou de toute manipulation peut entraîner le refus des récompenses.</li>
+      <li>Seuls les 100 personnages officiels comptent pour le classement ; les NFT ajoutés par les joueurs restent en mode local.</li>
+    </ul>
+
+    <h2>3. Récompenses disponibles</h2>
+    <table>
+      <tr><th>Niveau</th><th>Condition (combats classés)</th></tr>
+      <tr><td>Commun</td><td>Atteindre 3 000 points classés</td></tr>
+      <tr><td>Rare</td><td>10 victoires classées d’affilée</td></tr>
+      <tr><td>Épique</td><td>150 victoires classées</td></tr>
+      <tr><td>Légendaire</td><td>40 victoires contre des adversaires Légendaires</td></tr>
+      <tr><td>Spécial</td><td>Attribué par l’organisateur (ex. meilleur joueur d’une saison), annoncé à l’avance</td></tr>
+    </table>
+    <ul>
+      <li data-i18n-html>Chaque récompense ne peut être obtenue et réclamée qu’<b>une seule fois</b> par joueur.</li>
+      <li data-i18n-html>Le stock est <b>limité</b> : un NFT précis de la rareté de jeu correspondante est réservé au moment de la réclamation, dans la limite des disponibilités.</li>
+      <li>Les points classés sont plafonnés à 3 000 par jour (hors missions) et les combats sont limités en fréquence.</li>
+      <li>La « rareté de jeu » des personnages est une classification propre à l’arène ; sur la blockchain, les traits Neon Buddies 2 ont tous la même fréquence.</li>
+    </ul>
+
+    <h2>4. Réclamation et envoi</h2>
+    <ol>
+      <li>Une fois la condition remplie, le bouton « Réclamer le NFT » apparaît dans l’onglet Récompenses.</li>
+      <li>L’organisateur vérifie la demande (régularité des combats, absence de triche) et l’accepte ou la refuse.</li>
+      <li data-i18n-html>En cas d’acceptation, l’organisateur envoie lui-même le NFT depuis son wallet vers l’adresse connectée. La transaction est visible sur <a href="https://robinhoodchain.blockscout.com" target="_blank" rel="noopener">robinhoodchain.blockscout.com</a>.</li>
+      <li>Les frais de réseau de l’envoi sont pris en charge par l’organisateur. Le joueur n’a rien à payer.</li>
+    </ol>
+
+    <h2>5. Données</h2>
+    <ul>
+      <li>Le serveur enregistre uniquement l’adresse publique du wallet, un pseudo facultatif, les résultats de combats classés et l’état des récompenses.</li>
+      <li>Aucune clé privée, aucune phrase de récupération n’est jamais demandée. Toute demande de ce type est une arnaque.</li>
+      <li>La progression hors ligne reste dans ton navigateur (localStorage).</li>
+    </ul>
+
+    <h2>6. Modes de jeu</h2>
+    <ul>
+      <li>Les points classés peuvent être gagnés en duel, en solo contre des bots (points multipliés selon la difficulté), en PvP en ligne (file d’attente interrogée par le jeu, pas en temps réel), en tournoi (une fois par jour, contre des fantômes et des bots, points selon le classement) et contre le boss du jour (tentatives limitées par jour).</li>
+      <li>Tous les combats classés sont calculés par le serveur ; les mêmes limites quotidiennes et le même plafond de points s’appliquent à tous les modes.</li>
+      <li>Le classement ELO du PvP est indépendant des points et ne donne pas droit à lui seul à une récompense.</li>
+    </ul>
+
+    <h2>7. Divers</h2>
+    <ul>
+      <li>L’organisateur peut suspendre, modifier ou arrêter le programme de récompenses ; les récompenses déjà validées restent dues.</li>
+      <li>En cas de bug ou d’abus manifeste, les résultats concernés peuvent être annulés.</li>
+      <li>Il appartient à chaque participant de vérifier que la réception d’un NFT est autorisée dans son pays. Réservé aux personnes majeures.</li>
+      <li data-i18n-html>Contact : <a href="https://x.com/BusinessGry" target="_blank" rel="noopener">X @BusinessGry</a> · Site : <a href="https://neon-buddies-2.netlify.app/" target="_blank" rel="noopener">neon-buddies-2.netlify.app</a></li>
+    </ul>
+    <p class="muted small">Ce règlement est un modèle fourni avec le jeu ; il ne constitue pas un avis juridique.</p>
+  </main>
+</body>
+</html>

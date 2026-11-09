@@ -1,0 +1,5 @@
+# Copie ce fichier en .dev.vars pour le développement local (wrangler dev). Ne jamais le committer.
+# En production, utilise : npx wrangler secret put <NOM>
+TELEGRAM_BOT_TOKEN=REMPLACE_PAR_LE_TOKEN_DONNE_PAR_BOTFATHER
+TELEGRAM_ADMIN_CHAT_ID=REMPLACE_PAR_TON_CHAT_ID
+TELEGRAM_WEBHOOK_SECRET=REMPLACE_PAR_UNE_LONGUE_CHAINE_ALEATOIRE

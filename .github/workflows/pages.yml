@@ -1,0 +1,42 @@
+name: Deploy GitHub Pages
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Assemble static site
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp index.html regles.html .nojekyll _site/
+          cp -r css js assets _site/
+          rm -rf _site/worker _site/tests _site/scripts _site/.github
+          test ! -e _site/worker
+          test ! -e _site/js/config.js || grep -q "API_URL" _site/js/config.js
+          find _site -type f \( -name '.dev.vars' -o -name 'wrangler.toml' -o -name '*.pem' -o -name '.env' \) -print | grep -q . && exit 1 || true
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

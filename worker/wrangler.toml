@@ -1,0 +1,58 @@
+# Cloudflare Worker — NEON BUDDIES — NFT BATTLE ARENA (offre gratuite Workers + D1)
+name = "neon-buddies-arena-api"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+account_id = "c57c5f5ed45cf8fe3f49145444723951"
+
+[observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.01
+
+[vars]
+ADMIN_ADDRESS = "0xCABB7fe1C84AaC98E8905aB0809129e4f5031635"
+CHAIN_ID = "4663"
+RPC_URL = "https://rpc.mainnet.chain.robinhood.com"
+NFT_CONTRACT = "0x3aFaFa532c6Ea72ad5533A5aeEb409276ACC0aFc"
+# Origine du site GitHub Pages (en-tête Origin, sans chemin). Localhost : développement seulement.
+ALLOWED_ORIGINS = "https://neonbuddies.github.io,http://localhost:8765,http://127.0.0.1:8765"
+FIGHT_MIN_INTERVAL_MS = "2000"
+MAX_FIGHTS_PER_DAY = "300"
+DAILY_POINTS_CAP = "3000"
+CHECK_ONCHAIN = "1"
+# Réclamations NFT réelles : "0" tant que le parcours n'est pas revu en production. Le mode test reste possible.
+# Passer à "1" uniquement après le déploiement vérifié. Aucun transfert n'est émis par le Worker.
+REAL_CLAIMS = "0"
+# Encaissement : "0". Aucun Paddle, PayPal ou crypto. Ne pas passer à "1" dans ce déploiement.
+PAYMENTS_ENABLED = "0"
+# URL publique du jeu (liens Telegram).
+PUBLIC_SITE_URL = "https://neonbuddies.github.io/Neon-Buddies-Battle-Arena/"
+# Notifications Telegram de victoires (1 = oui), au plus une toutes les VICTORY_NOTIFY_INTERVAL_SEC secondes
+TELEGRAM_NOTIFY_VICTORIES = "1"
+VICTORY_NOTIFY_INTERVAL_SEC = "600"
+STOCK_LOW_THRESHOLD = "2"
+# Modes : délai PvP avant proposition d'un BOT, tentatives de boss et tournois classés par jour
+PVP_TIMEOUT_SEC = "18"
+BOSS_ATTEMPTS_PER_DAY = "3"
+TOURNAMENTS_PER_DAY = "1"
+# Ne jamais activer l'horloge de test, ni raccourcir la durée minimale, dans ce fichier.
+# Worker visé (le build en ligne peut être plus ancien tant que ce commit n'est pas uploadé) :
+# https://neon-buddies-arena-api.neon-buddies-crypto-factory.workers.dev
+# REWARD_STOCK = '{"Common":[1,3,4],"Rare":[5],"Epic":[],"Legendary":[],"Special":[]}'
+
+# Secrets (jamais dans ce fichier, jamais dans git) — à poser hors dépôt :
+#   npx wrangler secret put TELEGRAM_BOT_TOKEN
+#   npx wrangler secret put TELEGRAM_ADMIN_CHAT_ID
+#   npx wrangler secret put TELEGRAM_WEBHOOK_SECRET
+
+[[d1_databases]]
+binding = "DB"
+database_name = "neon-buddies-arena"
+database_id = "c6957ed9-093a-4f0e-8bcc-abe5f7c3e7c4"
