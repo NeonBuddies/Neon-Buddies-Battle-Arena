@@ -25,6 +25,7 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+  function ethWei(eth) { var p = String(eth).split('.'), f = (p[1] || '').slice(0, 18); return '0x' + (BigInt(p[0] || 0) * 1000000000000000000n + BigInt((f + '0'.repeat(18)).slice(0, 18))).toString(16); }
   function roster() {
     var base = (window.NB_COLLECTION || []).map(function (c) {
       return { id: c.id, tokenId: c.tokenId, name: c.name, rarity: c.rarity, rank: c.rank, traits: c.traits, image: 'assets/nft/' + c.id + '.jpg', custom: false };
@@ -354,7 +355,7 @@
         var state = E.createManualBattle(a, prog(a.id).level, opp, lvB, randomSeed(), opts);
         var foeL = m === 'duel' ? b : (m === 'boss' ? bossView(bossToday()) : opp);
         var quick = !!(forced && forced.quick);
-        ui.battle = { manual: true, ranked: false, quick: quick, quickNow: quick ? Date.now() : 0, state: state, view: E.manualView(state, quick ? Date.now() : manualNow(state)), a: a, b: foeL, extra: extra, diff: diff, timers: [], speed: quick ? 2 : 1, done: false };
+        ui.battle = { manual: true, ranked: false, quick: quick, quickNow: quick ? Date.now() : 0, state: state, view: E.manualView(state, quick ? Date.now() : manualNow(state)), a: a, b: foeL, extra: extra, diff: diff, timers: [], speed: quick ? 4 : 1, done: false };
         openManual(ui.battle);
         localLoop();
       }
@@ -388,7 +389,7 @@
   function localLoop() {
     var bt = ui.battle;
     if (!bt || !bt.manual || bt.ranked || bt.done) return;
-    var now = bt.quick ? (bt.quickNow += 250) : manualNow(bt.state);
+    var now = bt.quick ? (bt.quickNow += 500) : manualNow(bt.state);
     var ticked = E.manualTick(bt.state, now);
     ticked._testNow = bt.state._testNow;
     var fin = E.manualFinish(ticked, now);
@@ -397,7 +398,7 @@
     bt.view = E.manualView(bt.state, now);
     paintManual();
     if (fin.ok && bt.state.status !== 'active') return commitManual(bt, null);
-    bt.timer = setTimeout(localLoop, window.__NB_TEST_CLOCK ? 40 : (bt.quick ? 100 : 500));
+    bt.timer = setTimeout(localLoop, window.__NB_TEST_CLOCK ? 40 : (bt.quick ? 50 : 500));
   }
   function pollManual() {
     var bt = ui.battle;
@@ -963,7 +964,7 @@
       var sess = W.getSession();
       el.innerHTML = Object.keys(groups).map(function (cat) { return '<h4>' + labels[cat] + '</h4>' + groups[cat].map(function (p) {
         var price = p.priceEth ? esc(p.priceEth) + ' ETH' : (p.priceEur ? esc(String(p.priceEur)) + ' EUR' : 'Prix à définir');
-        var action = p.purchasable && p.testOnly ? (sess ? '<button class="btn btn-small" data-test-order="' + esc(p.id) + '">🧪 Tester gratuitement</button>' : '<span class="muted small">Connecte ton wallet pour tester</span>') : '';
+        var action = p.purchasable && p.testOnly ? (sess ? '<button class="btn btn-small" data-test-order="' + esc(p.id) + '">🧪 Tester gratuitement</button>' : '<span class="muted small">Connecte ton wallet pour tester</span>') : (p.purchasable && shop.realPayments ? (sess ? '<button class="btn btn-primary btn-small" data-shop-buy="' + esc(p.id) + '" data-shop-price="' + esc(p.priceEth) + '">Acheter</button>' : '<span class="muted small">Connecte ton wallet pour acheter</span>') : '');
         return '<div class="rule"><span>' + esc(p.name) + '</span><span><b>' + price + '</b> ' + action + '</span></div>';
       }).join(''); }).join('') + '<p class="muted small">Checkout : ' + (shop.checkout ? 'actif' : 'désactivé') + ' · Réseau prévu : Robinhood Chain (' + shop.chainId + ')</p>';
     } catch (e) { el.innerHTML = '<p class="err-txt small">Catalogue indisponible.</p>'; }
@@ -1179,6 +1180,19 @@
         order.disabled = true;
         try { var purchase = await W.api('/api/shop/test-order', { method: 'POST', body: { productId: order.getAttribute('data-test-order') } }); toast(purchase.alreadyOwned ? 'Produit déjà présent dans ton inventaire.' : 'Produit test ajouté à ton inventaire.'); }
         catch (err) { toast(errMsg(err)); }
+        renderRewards(); return;
+      }
+      var buy = e.target.closest('[data-shop-buy]');
+      if (buy) {
+        buy.disabled = true;
+        try {
+          var txHash = await W.sendNative(window.NB_CONFIG.TREASURY, ethWei(buy.getAttribute('data-shop-price')));
+          toast('Transaction envoyée, attente de confirmation…');
+          var receipt = await W.waitReceipt(txHash, 180000);
+          if (!receipt || receipt.status !== '0x1') throw new Error('Transaction non confirmée.');
+          await W.api('/api/shop/order', { method: 'POST', body: { productId: buy.getAttribute('data-shop-buy'), txHash: txHash } });
+          toast('Achat confirmé et ajouté à ton inventaire.');
+        } catch (err) { toast(errMsg(err)); }
         renderRewards(); return;
       }
       var af = e.target.closest('[data-afilter]');

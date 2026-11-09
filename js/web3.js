@@ -190,12 +190,18 @@
     setSession(v); emit();
     return v;
   }
+  async function sendNative(to, valueWei) {
+    if (!state.provider || !state.address) throw new Error('Wallet non connecté');
+    if (state.chainId !== Number(CFG.CHAIN_ID)) await switchChain();
+    if (String(to || '').toLowerCase() !== String(CFG.TREASURY || '').toLowerCase()) throw new Error('Trésorerie inattendue : envoi bloqué.');
+    return state.provider.request({ method: 'eth_sendTransaction', params: [{ from: state.address, to: to, value: valueWei }] });
+  }
 
   root.NBWeb3 = {
     config: CFG, state: state, onChange: function (f) { listeners.push(f); },
     hasProvider: function () { return !!pickProvider(); }, isMobile: isMobile, deepLink: deepLink, short: short,
     connect: connect, resume: resume, disconnect: disconnect, switchChain: switchChain,
-    rpc: rpc, rpcChainId: rpcChainId, ownerOf: ownerOf, contractName: contractName, tokenURI: tokenURI, waitReceipt: waitReceipt, sendTx: sendTx,
+    rpc: rpc, rpcChainId: rpcChainId, ownerOf: ownerOf, contractName: contractName, tokenURI: tokenURI, waitReceipt: waitReceipt, sendTx: sendTx, sendNative: sendNative,
     apiEnabled: apiEnabled, backendStatus: backendStatus, probeBackend: probeBackend, api: api, signIn: signIn, getSession: getSession, clearSession: clearSession,
     explorerTx: function (h) { return CFG.EXPLORER + '/tx/' + h; },
     explorerToken: function (id) { return CFG.EXPLORER + '/token/' + CFG.NFT_CONTRACT + '/instance/' + id; },

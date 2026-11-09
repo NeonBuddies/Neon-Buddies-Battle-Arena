@@ -8,7 +8,8 @@ import {
   isAddress, lower, hashPersonalMessage, encodeSafeTransferFrom, encodeOwnerOf, encodeIsValidSignature,
   is1271Magic, addrTopic, uintTopic, TRANSFER_TOPIC, randomHex, sha256Hex
 } from './crypto.js';
-import { claimDaily, claimPass, testPurchase, updateProfile, evolveCharacter, registerTournament, recordBattleProgress, claimMission, featureSnapshot, createGuild, inviteGuildMember, decideGuildInvite, guildChat, adminDashboard } from './platform.js';
+import { claimDaily, claimPass, testPurchase, purchaseProduct, updateProfile, evolveCharacter, registerTournament, recordBattleProgress, claimMission, featureSnapshot, createGuild, inviteGuildMember, decideGuildInvite, guildChat, adminDashboard } from './platform.js';
+import { SHOP, productById } from './shop.js';
 
 const NONCE_TTL = 5 * 60 * 1000;
 const SESSION_TTL = 7 * 24 * 3600 * 1000;
@@ -36,6 +37,24 @@ function cfg(env) {
   };
 }
 function realClaimsOn(env) { return cfg(env).realClaims; }
+function ethToWei(value) {
+  const s = String(value);
+  if (!/^\d+(?:\.\d{1,18})?$/.test(s)) throw new HttpError(500, 'Prix ETH invalide');
+  const [whole, fraction = ''] = s.split('.');
+  return BigInt(whole) * 1000000000000000000n + BigInt((fraction + '0'.repeat(18)).slice(0, 18));
+}
+function hexBigInt(value) { try { return BigInt(value || '0x0'); } catch (_) { throw new HttpError(409, 'Valeur de transaction invalide'); } }
+async function verifyShopTransaction(env, address, product, txHash) {
+  if (!/^0x[0-9a-fA-F]{64}$/.test(String(txHash || ''))) throw new HttpError(400, 'Hash de transaction invalide');
+  const tx = await rpc(env, 'eth_getTransactionByHash', [txHash]);
+  if (!tx || !tx.blockNumber) throw new HttpError(409, 'Transaction non minée : attends sa confirmation.');
+  if (lower(tx.from || '') !== lower(address)) throw new HttpError(409, 'L’expéditeur ne correspond pas au wallet connecté.');
+  if (lower(tx.to || '') !== lower(SHOP.treasury)) throw new HttpError(409, 'Le destinataire ne correspond pas à la trésorerie.');
+  if (hexBigInt(tx.value) !== ethToWei(product.priceEth)) throw new HttpError(409, 'Le montant ETH ne correspond pas au prix du produit.');
+  const receipt = await rpc(env, 'eth_getTransactionReceipt', [txHash]);
+  if (!receipt || receipt.status !== '0x1') throw new HttpError(409, 'La transaction a échoué ou son reçu est indisponible.');
+  return txHash.toLowerCase();
+}
 function short(a) { return a.slice(0, 6) + '…' + a.slice(-4); }
 
 function corsHeaders(req, env) {
@@ -788,7 +807,7 @@ async function route(req, env, ctx) {
 
   if (m === 'GET' && path === '/api/health') {
     await rateLimit(env, 'health:' + ip, 120, 60);
-    return { ok: true, chainId: c.chainId, contract: c.contract, admin: c.admin, day: E.dayKey(), realClaims: c.realClaims, payments: false, checkout: false, manual: true, schema: '0002', audited: false };
+    return { ok: true, chainId: c.chainId, contract: c.contract, admin: c.admin, day: E.dayKey(), realClaims: c.realClaims, payments: c.paymentsEnabled, checkout: c.paymentsEnabled, manual: true, schema: '0004', audited: true };
   }
 
   if (m === 'GET' && path === '/api/config') {
@@ -879,13 +898,22 @@ async function route(req, env, ctx) {
     await rateLimit(env, 'shop:' + ip, 60, 60);
     const shop = live.shop();
     const c = cfg(env), testMode = env.SHOP_TEST_MODE === '1';
-    return Object.assign({}, shop, { payments: testMode ? 'test-free' : (c.paymentsEnabled ? 'crypto-prepared' : 'off'), checkout: false, realPayments: false, testMode, products: shop.products.map(p => Object.assign({}, p, { purchasable: testMode && p.testOnly === true })) });
+    return Object.assign({}, shop, { payments: testMode ? 'test-free' : (c.paymentsEnabled ? 'crypto-live' : 'off'), checkout: c.paymentsEnabled, realPayments: c.paymentsEnabled, testMode, products: shop.products.map(p => Object.assign({}, p, { purchasable: (testMode && p.testOnly === true) || (c.paymentsEnabled && !p.testOnly) })) });
   }
   if (m === 'POST' && path === '/api/shop/test-order') {
     if (env.SHOP_TEST_MODE !== '1') throw new HttpError(404, 'Boutique de test désactivée');
     const s = await auth(req, env), b = await body(req);
     try { return await testPurchase(env, s.address, b.productId); }
     catch (e) { throw new HttpError(400, e.message || 'Commande de test impossible'); }
+  }
+  if (m === 'POST' && path === '/api/shop/order') {
+    if (!c.paymentsEnabled) throw new HttpError(404, 'Paiements réels désactivés');
+    const s = await auth(req, env), b = await body(req), product = productById(b.productId);
+    if (!product || product.testOnly || !product.priceEth) throw new HttpError(400, 'Produit non achetable');
+    await rateLimit(env, 'shop-order:' + s.address, 20, 3600);
+    const txHash = await verifyShopTransaction(env, s.address, product, b.txHash);
+    try { return await purchaseProduct(env, s.address, product, txHash); }
+    catch (e) { throw new HttpError(400, e.message || 'Commande impossible'); }
   }
   if (m === 'GET' && path === '/api/features') {
     const s = await auth(req, env);

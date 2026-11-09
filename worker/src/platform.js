@@ -95,6 +95,19 @@ async function testPurchase(env, address, productId) {
   await grantItem(env, address, reward, `shop:test:${id}`);
   return { order: { id, productId, status: 'fulfilled' }, duplicate: false, payment: 'test', charged: '0 ETH', item: reward };
 }
+async function purchaseProduct(env, address, product, txHash) {
+  const existing = await env.DB.prepare('SELECT id,product_id,status FROM shop_orders WHERE tx_hash = ?1').bind(txHash).first();
+  if (existing) return { order: existing, duplicate: true, payment: 'crypto', item: null };
+  const reward = product.category === 'gems'
+    ? { type: 'gems', id: product.id, qty: Number(product.quantity || 0), label: product.name }
+    : { type: product.category === 'nfts' ? 'nft' : product.category === 'characters' ? 'character' : product.category === 'skins' ? 'skin' : 'premium', id: product.id, qty: 1, label: product.name };
+  if (!reward.qty) throw new Error('Produit sans quantité valide');
+  const t = now(), id = `order-${crypto.randomUUID()}`;
+  await env.DB.prepare("INSERT INTO shop_orders (id,address,product_id,quantity,payment_mode,status,tx_hash,created_at,fulfilled_at) VALUES (?1,?2,?3,1,'crypto','fulfilled',?4,?5,?5)")
+    .bind(id, address, product.id, txHash, t).run();
+  await grantItem(env, address, reward, `shop:crypto:${id}`);
+  return { order: { id, productId: product.id, status: 'fulfilled', txHash }, duplicate: false, payment: 'crypto', charged: product.priceEth + ' ETH', item: reward };
+}
 async function updateProfile(env, address, body) {
   const username = cleanText(body.username, 20).replace(/[^\p{L}\p{N} _.-]/gu, '').trim() || null;
   const avatar = AVATARS.has(body.avatar) ? body.avatar : 'neon-default';
@@ -228,4 +241,4 @@ async function adminDashboard(env) {
   ]);
   return { players: players.n, battles24h: battles.n, guilds: guilds.n, guildMembers: guildMembers.n, tournamentEntries7d: tournamentEntries.n, evolvedCharacters: evolutions.n, battlePassXp: passXp.n, storeItemsGranted: sales.n, rewards: Object.fromEntries(claims.results.map(x => [x.status, x.n])), payments: { enabled: false, configured: false } };
 }
-export { claimDaily, claimPass, testPurchase, updateProfile, evolveCharacter, registerTournament, recordBattleProgress, claimMission, featureSnapshot, createGuild, inviteGuildMember, decideGuildInvite, guildChat, adminDashboard, seasonKey, dayKey, weekKey, grantItem, PASS_LEVELS, PASS_XP_PER_LEVEL };
+export { claimDaily, claimPass, testPurchase, purchaseProduct, updateProfile, evolveCharacter, registerTournament, recordBattleProgress, claimMission, featureSnapshot, createGuild, inviteGuildMember, decideGuildInvite, guildChat, adminDashboard, seasonKey, dayKey, weekKey, grantItem, PASS_LEVELS, PASS_XP_PER_LEVEL };

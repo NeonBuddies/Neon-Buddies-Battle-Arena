@@ -90,7 +90,7 @@ test.before(async () => {
     REWARD_STOCK: JSON.stringify({ Common: [1, 3], Rare: [5], Epic: [7], Legendary: [2], Special: [12] }),
     TELEGRAM_API_BASE: base, TELEGRAM_BOT_TOKEN: TG_TOKEN, TELEGRAM_ADMIN_CHAT_ID: ADMIN_CHAT, TELEGRAM_WEBHOOK_SECRET: TG_SECRET,
     TELEGRAM_NOTIFY_VICTORIES: '1', VICTORY_NOTIFY_INTERVAL_SEC: '600', STOCK_LOW_THRESHOLD: '1', PVP_TIMEOUT_SEC: '3', BOSS_ATTEMPTS_PER_DAY: '3',
-    REAL_CLAIMS: '1', HARNESS_FAST_FIGHT: '1', FIGHT_MIN_MS: '150000',
+    REAL_CLAIMS: '1', PAYMENTS_ENABLED: '0', SHOP_TEST_MODE: '0', HARNESS_FAST_FIGHT: '1', FIGHT_MIN_MS: '150000',
     PUBLIC_SITE_URL: 'https://exemple.github.io/neon-buddies-battle-arena/'
   };
   const args = ['wrangler', 'dev', '--local', '--port', String(PORT), '--ip', '127.0.0.1', '--persist-to', persist, '--show-interactive-dev-session=false'];
@@ -149,11 +149,11 @@ let pTok, aTok;
 test('santé, configuration et CORS', async () => {
   const h = await api('/api/health');
   assert.equal(h.status, 200); assert.equal(h.data.chainId, 4663); assert.equal(h.data.admin, admin.address.toLowerCase());
-  assert.equal(h.data.realClaims, true); assert.equal(h.data.audited, false);
-  assert.equal(h.data.manual, true); assert.equal(h.data.payments, false); assert.equal(h.data.checkout, false); assert.equal(h.data.schema, '0002');
+  assert.equal(h.data.realClaims, true); assert.equal(h.data.audited, true);
+  assert.equal(h.data.manual, true); assert.equal(h.data.payments, false); assert.equal(h.data.checkout, false); assert.equal(h.data.schema, '0004');
   const toml = fs.readFileSync(path.join(root, 'wrangler.toml'), 'utf8');
   assert.match(toml, /REAL_CLAIMS = "0"/);
-  assert.match(toml, /PAYMENTS_ENABLED = "0"/);
+  assert.match(toml, /PAYMENTS_ENABLED = "1"/);
   assert.equal(/^\s*(HARNESS_FAST_FIGHT|FIGHT_MIN_MS)\s*=/m.test(toml), false);
   assert.equal(h.headers.get('access-control-allow-origin'), ORIGIN);
   const bad = await api('/api/health', { headers: { Origin: 'https://pirate.example' } });
