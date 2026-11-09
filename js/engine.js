@@ -422,7 +422,7 @@
   }
 
   /* ---------- Combat manuel : le joueur déclenche attaque et sort ---------- */
-  var MANUAL = { MIN_MS: 150000, MAX_EXTRA_MS: 60000, ATTACK_CD: 4000, SPELL_CD: 14000, NPC_CD: 4500, HIT_FRAC: 0.02 };
+  var MANUAL = { MIN_MS: 150000, MAX_EXTRA_MS: 60000, MIN_ACTIVE_WINDOWS: 3, ATTACK_CD: 4000, SPELL_CD: 14000, NPC_CD: 4500, HIT_FRAC: 0.02 };
   var SPELL_BY_FAMILY = {
     'Robot Couronne': { key: 'brise', title: 'Couronne', mult: 1.25, ignoreDef: 0.35, blurb: 'Ignore 35 % de la défense.' },
     'Lapin Pastel': { key: 'siphon', title: 'Pastel', mult: 1.1, healOfDmg: 0.2, blurb: 'Dégâts ×1,10 et soin de 20 % des dégâts.' },
@@ -551,7 +551,7 @@
   function isEngaged(state) {
     if (state.playerActions < 1) return false;
     if (state.minMs < 150000) return true;
-    var need = Math.ceil(state.minMs / 30000), seen = {};
+    var need = Math.min(Math.ceil(state.minMs / 30000), MANUAL.MIN_ACTIVE_WINDOWS), seen = {};
     state.A.actionTimes.forEach(function (t) {
       var b = Math.floor((t - state.startedAt) / 30000);
       if (b >= 0 && b < need) seen[b] = 1;

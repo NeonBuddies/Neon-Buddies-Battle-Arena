@@ -356,7 +356,7 @@
         var foeL = m === 'duel' ? b : (m === 'boss' ? bossView(bossToday()) : opp);
         // Tous les combats locaux sont automatiques : les deux personnages jouent
         // et s'infligent leurs dégâts sans attendre une action manuelle.
-        var quick = true;
+        var quick = false;
         ui.battle = { manual: true, ranked: false, quick: quick, quickNow: Date.now(), state: state, view: E.manualView(state, Date.now()), a: a, b: foeL, extra: extra, diff: diff, timers: [], speed: 4, done: false };
         openManual(ui.battle);
         localLoop();
@@ -366,7 +366,7 @@
   function openManual(bt) {
     if (location.hash !== '#arene') { history.replaceState(null, '', '#arene'); route(); }
     $('#arena-setup').hidden = true; $('#arena-fight').hidden = false; $('#pvp-wait').hidden = true; $('#result').hidden = true;
-    var controls = $('#fight-controls'); if (controls) controls.hidden = !bt.ranked;
+    var controls = $('#fight-controls'); if (controls) controls.hidden = false;
     $('#battle-log').innerHTML = '';
     drawFighter('A', bt.a, { level: 1, maxHp: bt.view.you.maxHp, hp: bt.view.you.hp });
     drawFighter('B', bt.b, { level: 1, maxHp: bt.view.foe.maxHp, hp: bt.view.foe.hp });
