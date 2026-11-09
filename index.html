@@ -27,6 +27,7 @@
       <a href="#recompenses" data-nav="recompenses"><span class="ico">🏆</span><span>Récompenses</span><b class="nav-badge" id="nav-badge" hidden>0</b></a>
       <a href="#ajouter" data-nav="ajouter"><span class="ico">＋</span><span>Ajouter</span></a>
       <a href="#profil" data-nav="profil"><span class="ico">◉</span><span>Profil</span></a>
+      <a href="#communaute" data-nav="communaute"><span class="ico">⚑</span><span>Communauté</span></a>
     </nav>
     <div class="points-pill" title="Tes points"><span id="hud-points">0</span> pts</div>
     <div class="lang-toggle" role="group" aria-label="Langue" translate="no"><button type="button" data-lang="fr" lang="fr">FR</button><button type="button" data-lang="en" lang="en">EN</button></div>
@@ -253,6 +254,13 @@
       </div>
     </section>
 
+    <!-- COMMUNAUTÉ V2 -->
+    <section class="view" data-view="communaute" aria-labelledby="v2-title" hidden>
+      <div class="view-head"><h2 id="v2-title">Communauté</h2></div>
+      <p class="hint" id="v2-lead">Guildes, chat, amis, raids et tournoi de joueurs. Le serveur décide des points. Aucun NFT n’est envoyé depuis cet écran.</p>
+      <div id="v2-root"></div>
+    </section>
+
     <!-- PROFIL -->
     <section class="view" data-view="profil" aria-labelledby="pf-title" hidden>
       <div class="view-head"><h2 id="pf-title">Profil &amp; sauvegarde</h2></div>
@@ -329,6 +337,7 @@
   <script src="js/storage.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/web3.js"></script>
+  <script src="js/community.js"></script>
   <script src="js/ui.js"></script>
 </body>
 </html>

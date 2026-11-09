@@ -766,7 +766,7 @@ async function route(req, env, ctx) {
 
   if (m === 'GET' && path === '/api/health') {
     await rateLimit(env, 'health:' + ip, 120, 60);
-    return { ok: true, chainId: c.chainId, contract: c.contract, admin: c.admin, day: E.dayKey(), realClaims: c.realClaims, audited: false };
+    return { ok: true, chainId: c.chainId, contract: c.contract, admin: c.admin, day: E.dayKey(), realClaims: c.realClaims, audited: false, v2Scheduler: String(env.V2_SCHEDULER || '') === '1' };
   }
 
   if (m === 'GET' && path === '/api/config') {
@@ -909,6 +909,14 @@ async function route(req, env, ctx) {
       return { id, test: !!test };
     }
   }
+  if (path.startsWith('/api/v2/shop') || path === '/api/paypal/webhook') {
+    const { shopRoute } = await import('./shop.js');
+    return shopRoute(req, env, ctx, url, { auth, rateLimit, body, getPlayer, isFounder, ownerOf, num, short });
+  }
+  if (path.startsWith('/api/v2') || path.startsWith('/api/admin/v2')) {
+    const { communityRoute } = await import('./community.js');
+    return communityRoute(req, env, ctx, url, { auth, rateLimit, body, getPlayer, isFounder, ownerOf, num, short });
+  }
   throw new HttpError(404, 'Route inconnue');
 }
 
@@ -920,9 +928,13 @@ export default {
       const data = await route(req, env, ctx);
       return json(data, data && data.pending ? 202 : 200, cors);
     } catch (e) {
-      if (e instanceof HttpError) return json({ error: e.message }, e.status, cors);
+      if (e instanceof HttpError || (e && e.httpError)) return json({ error: e.message }, e.status, cors);
       console.error(JSON.stringify({ message: 'request failed', error: String(e && e.message || e) }));
       return json({ error: 'Erreur serveur' }, 500, cors);
     }
+  },
+  async scheduled(_event, env, ctx) {
+    const job = import('./community.js').then(m => m.runScheduler(env, null, { force: true }));
+    ctx.waitUntil(job);
   }
 };

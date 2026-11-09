@@ -83,15 +83,16 @@
   }
 
   /* ---------- Navigation ---------- */
-  var VIEWS = ['accueil', 'galerie', 'arene', 'classement', 'recompenses', 'admin', 'ajouter', 'profil'];
+  var VIEWS = ['accueil', 'galerie', 'arene', 'classement', 'recompenses', 'admin', 'ajouter', 'profil', 'communaute'];
   function route() {
     var v = (location.hash || '#accueil').slice(1);
     if (VIEWS.indexOf(v) < 0) v = 'accueil';
     if (ui.battle && v !== 'arene') stopBattle(true);
     if (pvp && v !== 'arene') stopPvp(false);
+    if (v !== 'communaute' && window.NBCommunity) window.NBCommunity.hide();
     $$('.view').forEach(function (el) { el.hidden = el.getAttribute('data-view') !== v; });
     $$('[data-nav]').forEach(function (a) { a.classList.toggle('active', a.getAttribute('data-nav') === v); a.setAttribute('aria-current', a.getAttribute('data-nav') === v ? 'page' : 'false'); });
-    ({ accueil: renderHome, galerie: renderGallery, arene: renderArenaSetup, classement: renderLeaderboard, recompenses: renderRewards, admin: renderAdmin, ajouter: renderAdd, profil: renderProfile })[v]();
+    ({ accueil: renderHome, galerie: renderGallery, arene: renderArenaSetup, classement: renderLeaderboard, recompenses: renderRewards, admin: renderAdmin, ajouter: renderAdd, profil: renderProfile, communaute: function () { if (window.NBCommunity) window.NBCommunity.show(); } })[v]();
     window.scrollTo(0, 0);
   }
   function go(v) { if (location.hash === '#' + v) route(); else location.hash = v; }

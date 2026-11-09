@@ -49,6 +49,20 @@ Node, `performance.now`, après les changements de ce passage :
 
 `crypto.subtle` ECDSA : P-256 oui, **secp256k1 non** (bench précédent). Ces chiffres ne sont pas le compteur CPU de Cloudflare. Le passage production cité dans le README (combat 17–18 ms, connexion 16 ms, froid 64–85 ms) reste la référence tant que le parent n’a pas redéployé cette version.
 
+## V2 — passage local du 9 novembre 2026 (branche séparée)
+
+`npm test` à la racine : 20/20 (moteur inchangé sur le combat, les sorts et les tentatives).
+
+`cd worker && npm test` : **27/27** en un seul passage (environ 74 s). Cela couvre les tests V1, 4 contrôles purs V2, les migrations 0002 et 0003 rejouées, le scénario communautaire, et la boutique contre un faux PayPal. Ce temps n’est pas le CPU Cloudflare.
+
+La tête V1 intégrée est `eda20250`. Les trois départs, le sort par personnage, les 2 min 30, et les trois tentatives par défi ne sont pas dans ce commit : ils restent sur la PR V1. Pas de cœurs, pas de verrou global, pas de paiement pour l’import d’image.
+
+CPU Cloudflare rapporté pour le déploiement de `eda2025`, 70 requêtes, 0 échec : combats chauds 5–7 ms, auth chaude 5–10 ms, auth froide 35 ms, tournoi 25 ms, PvP 39 ms, 7/70 au-dessus de 10 ms. Offre 10 ms non stabilisée. Plan d’abonnement non revérifié. Aucun redéploiement depuis cette branche.
+
+Non testé : Android réel, MetaMask réelle, transfert on-chain, base D1 de production, cron déployé.
+
+Boutique : le harness local (`PAYMENTS_ENABLED=1` seulement dans le test, faux serveur PayPal) a vérifié le prix serveur, le refus d’un montant client, l’origine, deux captures simultanées, une seule possession, le plafond configuré sans le déclarer confirmé, un montant sandbox incorrect, un webhook de remboursement vérifié, le rejeu du webhook, une signature refusée, un débit de points cosmétiques qui ne touche pas au classement, et l’import fondateur sans paiement. `wrangler.toml` reste à `PAYMENTS_ENABLED = "0"`. Aucun appel au vrai PayPal, aucun encaissement. L’historique à l’écran n’a pas été rejoué dans un navigateur après ce passage.
+
 ## Non fait — ne pas le compter comme un succès
 
 - Auth smoke vers `https://neon-buddies-arena-api.neon-buddies-crypto-factory.workers.dev` : HTTP **404** lors du passage précédent. Pas relancé comme succès. Aucune transaction.

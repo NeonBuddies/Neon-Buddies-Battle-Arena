@@ -494,6 +494,25 @@ select.input option { background: #12072a; }
 .lang-toggle button { background: transparent; color: #cbb8ff; border: 0; padding: 5px 9px; font: inherit; font-size: .75rem; font-weight: 700; cursor: pointer; }
 .lang-toggle button.active { background: linear-gradient(135deg, #ff2bd6, #8b5cff); color: #fff; }
 @media (max-width: 720px) { .bracket { font-size: .66rem; gap: 4px; } .lang-toggle button { padding: 4px 7px; } }
+
+/* Communauté V2 — mêmes couleurs, pas de nouveau thème */
+.v2-notes { margin: 0 0 12px; display: grid; gap: 6px; }
+.v2-notes p { margin: 0; padding: 8px 10px; border-radius: 10px; background: rgba(139,92,255,.12); border: 1px solid var(--line); }
+#v2-tabs { margin-bottom: 12px; }
+#v2-log { max-height: 320px; overflow: auto; }
+@media (max-width: 860px) {
+  #v2-tabs .chip { font-size: 12px; padding: 6px 8px; }
+}
+.cosmetic-row { display: flex; align-items: center; gap: 10px; }
+.swatch { width: 36px; height: 36px; border-radius: 10px; flex: none; background: #160a2c; }
+.cosmetic-frame-neon { box-shadow: 0 0 0 2px #ff2bd6, 0 0 12px #8b5cff; }
+.cosmetic-title-runner { background: linear-gradient(90deg, #ff2bd6, #8b5cff); }
+.cosmetic-fx-victory { background: radial-gradient(circle, #fff 0%, #ff2bd6 45%, transparent 70%); }
+.cosmetic-fx-spell { background: repeating-linear-gradient(45deg, #8b5cff, #8b5cff 4px, #ff2bd6 4px, #ff2bd6 8px); }
+.cosmetic-theme-arena { background: linear-gradient(#07020f, #3a145c 40%, #ff2bd6); }
+.cosmetic-banner-guild { background: linear-gradient(#8b5cff, #07020f); clip-path: polygon(0 0, 100% 0, 100% 80%, 50% 100%, 0 80%); }
+.cosmetic-import { background: #07020f; border: 1px dashed #ff2bd6; }
+.cosmetic-frame-points { box-shadow: inset 0 0 0 2px #45f3ff; }
 .result { overflow-y: auto; }
 .result-box { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
 .result-box .result-img { width: 96px; height: 96px; }

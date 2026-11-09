@@ -33,6 +33,33 @@ const server = http.createServer((req, res) => {
   req.on('data', c => data += c);
   req.on('end', () => {
     const j = data ? JSON.parse(data) : {};
+    if (req.url.startsWith('/v1/notifications/verify-webhook-signature')) {
+      res.end(JSON.stringify({ verification_status: mock.paypalVerify || 'SUCCESS' }));
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/v2/checkout/orders') {
+      mock.paypalSeq = (mock.paypalSeq || 0) + 1;
+      const id = 'TESTORDER' + mock.paypalSeq;
+      mock.paypalOrders = mock.paypalOrders || {};
+      mock.paypalOrders[id] = j;
+      res.end(JSON.stringify({ id, status: 'CREATED' }));
+      return;
+    }
+    const cap = req.url.match(/^\/v2\/checkout\/orders\/([^/]+)\/capture$/);
+    if (cap && req.method === 'POST') {
+      const order = (mock.paypalOrders || {})[cap[1]];
+      if (!order) { res.statusCode = 404; res.end('{}'); return; }
+      const amount = mock.paypalBadAmount ? { currency_code: 'EUR', value: '0.01' } : order.purchase_units[0].amount;
+      res.end(JSON.stringify({
+        id: cap[1], status: 'COMPLETED',
+        purchase_units: [{
+          reference_id: order.purchase_units[0].reference_id,
+          payee: { merchant_id: 'MERCHANTTEST' },
+          payments: { captures: [{ id: 'CAP-' + cap[1], status: 'COMPLETED', amount, custom_id: order.purchase_units[0].custom_id }] }
+        }]
+      }));
+      return;
+    }
     if (req.url.startsWith('/bot')) {
       const [, tok, method] = req.url.match(/^\/bot([^/]+)\/(\w+)/);
       mock.tg.push({ tok, method, body: j });
@@ -84,13 +111,17 @@ test.before(async () => {
   fs.mkdirSync(path.join(root, '.wrangler'), { recursive: true });
   persist = fs.mkdtempSync(path.join(root, '.wrangler', 'test-'));
   execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${persist} --file schema.sql`, { cwd: root, stdio: 'ignore' });
+  execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${persist} --file migrations/0002_community_v2.sql`, { cwd: root, stdio: 'ignore' });
+  execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${persist} --file migrations/0003_cosmetics.sql`, { cwd: root, stdio: 'ignore' });
   const vars = {
     ADMIN_ADDRESS: admin.address, CHAIN_ID: '4663', RPC_URL: base + '/rpc', NFT_CONTRACT: CONTRACT,
     ALLOWED_ORIGINS: ORIGIN, FIGHT_MIN_INTERVAL_MS: '150', MAX_FIGHTS_PER_DAY: '300', DAILY_POINTS_CAP: '3000', CHECK_ONCHAIN: '1',
     REWARD_STOCK: JSON.stringify({ Common: [1, 3], Rare: [5], Epic: [7], Legendary: [2], Special: [12] }),
     TELEGRAM_API_BASE: base, TELEGRAM_BOT_TOKEN: TG_TOKEN, TELEGRAM_ADMIN_CHAT_ID: ADMIN_CHAT, TELEGRAM_WEBHOOK_SECRET: TG_SECRET,
     TELEGRAM_NOTIFY_VICTORIES: '1', VICTORY_NOTIFY_INTERVAL_SEC: '600', STOCK_LOW_THRESHOLD: '1', PVP_TIMEOUT_SEC: '3', BOSS_ATTEMPTS_PER_DAY: '3',
-    REAL_CLAIMS: '1',
+    REAL_CLAIMS: '1', V2_SCHEDULER: '1', PAYMENTS_ENABLED: '1',
+    PAYPAL_API_BASE: base ? base : 'http://127.0.0.1', PAYPAL_SANDBOX_ACCESS_TOKEN: 'SANDBOX-JETON-FICTIF',
+    PAYPAL_SANDBOX_WEBHOOK_ID: 'WH-TEST', PAYPAL_MERCHANT_ID: 'MERCHANTTEST', COSMETIC_DAILY_PURCHASE_LIMIT: '2',
     PUBLIC_SITE_URL: 'https://exemple.github.io/neon-buddies-battle-arena/'
   };
   const args = ['wrangler', 'dev', '--local', '--port', String(PORT), '--ip', '127.0.0.1', '--persist-to', persist, '--show-interactive-dev-session=false'];
@@ -661,4 +692,319 @@ test('intégrité : combats concurrents n’écartent pas le journal des statist
   assert.equal(fights.p, me.data.profile.points);
   const chars = await db.prepare('SELECT xp FROM char_progress WHERE address = ? AND char_id = ?').bind(addr, '0004').first();
   assert.ok(chars && chars.xp > 0);
+});
+
+test('migration 0002 rejouée sans erreur', () => {
+  const again = fs.mkdtempSync(path.join(root, '.wrangler', 'mig-'));
+  execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --file schema.sql`, { cwd: root, stdio: 'ignore' });
+  execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --file migrations/0002_community_v2.sql`, { cwd: root, stdio: 'ignore' });
+  execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --file migrations/0002_community_v2.sql`, { cwd: root, stdio: 'ignore' });
+  execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --file migrations/0003_cosmetics.sql`, { cwd: root, stdio: 'ignore' });
+  execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --file migrations/0003_cosmetics.sql`, { cwd: root, stdio: 'ignore' });
+  const players = execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${again} --json --command "SELECT name FROM sqlite_master WHERE name='players'"`, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+  assert.match(players, /players/);
+  fs.rmSync(again, { recursive: true, force: true });
+});
+
+async function loginIp(w, ip) {
+  const headers = { 'CF-Connecting-IP': ip };
+  const n = await api('/api/auth/nonce', { method: 'POST', body: { address: w.address }, headers });
+  assert.equal(n.status, 200, JSON.stringify(n.data));
+  const signature = await w.signMessage(n.data.message);
+  const v = await api('/api/auth/verify', { method: 'POST', body: { address: w.address, nonce: n.data.nonce, signature }, headers });
+  assert.equal(v.status, 200, JSON.stringify(v.data));
+  return v.data.token;
+}
+
+test('V2 : accès, guilde, chat, amis, raid, quêtes, tournoi live', async () => {
+  const A = Wallet.createRandom(), B = Wallet.createRandom(), C = Wallet.createRandom();
+  const aT = await loginIp(A, '10.2.0.1'), bT = await loginIp(B, '10.2.0.2'), cT = await loginIp(C, '10.2.0.3');
+  const adm = await loginIp(admin, '10.2.0.4');
+  const a = A.address.toLowerCase(), b = B.address.toLowerCase(), c = C.address.toLowerCase();
+  const home = await api('/api/v2/home', { token: aT });
+  assert.equal(home.status, 200);
+  assert.equal(home.data.transport, 'poll');
+  assert.equal(home.data.websocket, false);
+  assert.equal(home.data.scheduler, true);
+  assert.ok(home.data.pendingCodes.includes('v1-ghost-distinct'));
+
+  const evil = await api('/api/v2/guilds', { method: 'POST', token: aT, headers: { Origin: 'https://pirate.example' }, body: { name: 'Pirates', logo: 'star' } });
+  assert.equal(evil.status, 403);
+  const spoof = await api('/api/admin/v2/schedule', { method: 'POST', token: aT, body: { opensAt: 1, startsAt: 2, size: 4 } });
+  assert.equal(spoof.status, 403);
+
+  const g1 = await api('/api/v2/guilds', { method: 'POST', token: aT, body: { name: 'Neon ' + a.slice(2, 6), logo: 'fox' } });
+  const g2 = await api('/api/v2/guilds', { method: 'POST', token: bT, body: { name: 'Byte ' + b.slice(2, 6), logo: 'panda' } });
+  assert.equal(g1.status, 200, JSON.stringify(g1.data));
+  assert.equal(g2.status, 200, JSON.stringify(g2.data));
+  const againG = await api('/api/v2/guilds', { method: 'POST', token: aT, body: { name: 'Autre', logo: 'star' } });
+  assert.equal(againG.status, 409);
+  const joinC = await api('/api/v2/guilds/join', { method: 'POST', token: cT, body: { id: g1.data.id } });
+  assert.equal(joinC.status, 200);
+  const kickForbidden = await api('/api/v2/guilds/kick', { method: 'POST', token: cT, body: { address: a } });
+  assert.equal(kickForbidden.status, 403);
+  const promote = await api('/api/v2/guilds/role', { method: 'POST', token: aT, body: { address: c, role: 'officer' } });
+  assert.equal(promote.status, 200);
+  const viewG = await api('/api/v2/guilds/' + g1.data.id);
+  assert.equal(viewG.data.members.length, 2);
+  const outsider = await api('/api/v2/chat/guild:' + g1.data.id, { token: bT });
+  assert.equal(outsider.status, 403);
+
+  const xss = await api('/api/v2/chat/global', { method: 'POST', token: aT, body: { text: '<script>alert(1)</script>' } });
+  assert.equal(xss.status, 200);
+  assert.equal(xss.data.body.includes('<'), false);
+  const seen = await api('/api/v2/chat/global?after=0', { token: bT });
+  assert.equal(seen.status, 200);
+  assert.ok(seen.data.messages.some(m => m.body === xss.data.body && !m.body.includes('<')));
+  const flood = await api('/api/v2/chat/global', { method: 'POST', token: aT, body: { text: xss.data.body } });
+  assert.equal(flood.status, 429);
+
+  const block = await api('/api/v2/block', { method: 'POST', token: aT, body: { address: c } });
+  assert.equal(block.status, 200);
+  const blockedReq = await api('/api/v2/friends/request', { method: 'POST', token: cT, body: { address: a } });
+  assert.equal(blockedReq.status, 403);
+  await api('/api/v2/block', { method: 'POST', token: aT, body: { address: c, unblock: true } });
+  const req = await api('/api/v2/friends/request', { method: 'POST', token: aT, body: { address: b } });
+  assert.equal(req.status, 200);
+  const acc = await api('/api/v2/friends/respond', { method: 'POST', token: bT, body: { address: a, accept: true } });
+  assert.equal(acc.status, 200);
+  const dm = await api('/api/v2/dm', { method: 'POST', token: aT, body: { address: b } });
+  assert.equal(dm.status, 200);
+  const secret = await api('/api/v2/chat/' + dm.data.channel, { method: 'POST', token: aT, body: { text: 'salut prive' } });
+  assert.equal(secret.status, 200);
+  const peek = await api('/api/v2/chat/' + dm.data.channel, { token: cT });
+  assert.equal(peek.status, 403);
+  const report = await api('/api/v2/report', { method: 'POST', token: bT, body: { messageId: secret.data.id, reason: 'spam test' } });
+  assert.equal(report.status, 200);
+  const muteNo = await api('/api/admin/v2/mute', { method: 'POST', token: cT, body: { address: a, minutes: 5 } });
+  assert.equal(muteNo.status, 403);
+  const mute = await api('/api/admin/v2/mute', { method: 'POST', token: adm, body: { address: a, minutes: 5, reason: 'test' } });
+  assert.equal(mute.status, 200);
+  const muted = await api('/api/v2/chat/global', { method: 'POST', token: aT, body: { text: 'je repasse' } });
+  assert.equal(muted.status, 403);
+  const del = await api('/api/admin/v2/delete', { method: 'POST', token: adm, body: { messageId: secret.data.id } });
+  assert.equal(del.status, 200);
+  await db.prepare('DELETE FROM mutes WHERE address = ?').bind(a).run();
+
+  const chA = await api('/api/v2/friends/challenge', { method: 'POST', token: aT, body: { address: b, fighterId: '0001' } });
+  assert.equal(chA.status, 200);
+  const duel = await Promise.all([
+    api('/api/v2/friends/challenge/accept', { method: 'POST', token: bT, body: { id: chA.data.id, fighterId: '0002' } }),
+    api('/api/v2/friends/challenge/accept', { method: 'POST', token: bT, body: { id: chA.data.id, fighterId: '0002' } })
+  ]);
+  assert.equal(duel.filter(x => x.status === 200 && !(x.data && x.data.already)).length, 1);
+  assert.ok(duel.some(x => x.status === 409 || (x.data && x.data.already)));
+  const friendGrants = await db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(points),0) AS p FROM point_grants WHERE id LIKE ?').bind('friend:' + chA.data.id + ':%').first();
+  assert.equal(friendGrants.n, 2);
+  assert.equal(friendGrants.p, 33);
+
+  const raids = await api('/api/v2/raids', { token: aT });
+  assert.equal(raids.status, 200);
+  const legend = raids.data.raids.find(r => r.difficulty === 'legend' && r.source === 'schedule');
+  assert.ok(legend && legend.oneHitClears === false && legend.cap < legend.hpMax);
+  const hit = await api('/api/v2/raids/' + encodeURIComponent(legend.id) + '/hit', { method: 'POST', token: bT, body: { fighterId: '0003' } });
+  assert.equal(hit.status, 200, JSON.stringify(hit.data));
+  assert.ok(hit.data.damage <= legend.cap);
+  assert.equal(hit.data.founderBonus, false);
+  assert.notEqual(hit.data.status, 'cleared');
+  const replay = await Promise.all([
+    api('/api/v2/raids/' + encodeURIComponent(legend.id) + '/hit', { method: 'POST', token: bT, body: { fighterId: '0004' } }),
+    api('/api/v2/raids/' + encodeURIComponent(legend.id) + '/hit', { method: 'POST', token: bT, body: { fighterId: '0005' } })
+  ]);
+  assert.ok(replay.every(x => x.status === 409));
+  const afterHit = await api('/api/v2/raids', { token: aT });
+  const legendNow = afterHit.data.raids.find(r => r.id === legend.id);
+  assert.equal(legendNow.hpMax - legendNow.hpLeft, hit.data.damage);
+
+  const rewardsBefore = await db.prepare('SELECT COUNT(*) AS n FROM rewards WHERE address = ?').bind(b).first();
+  const made = await api('/api/admin/v2/raid', { method: 'POST', token: adm, body: { difficulty: 'legend', hp: 30 } });
+  assert.equal(made.status, 200);
+  const clear = await api('/api/v2/raids/' + encodeURIComponent(made.data.id) + '/hit', { method: 'POST', token: bT, body: { fighterId: '0003' } });
+  assert.equal(clear.status, 200, JSON.stringify(clear.data));
+  assert.equal(clear.data.status, 'cleared');
+  assert.equal(clear.data.paid, 1);
+  const pts = (await api('/api/v2/home', { token: bT })).data.me.communityPoints;
+  const againHit = await api('/api/v2/raids/' + encodeURIComponent(made.data.id) + '/hit', { method: 'POST', token: bT, body: { fighterId: '0003' } });
+  assert.equal(againHit.status, 409);
+  const pts2 = (await api('/api/v2/home', { token: bT })).data.me.communityPoints;
+  assert.equal(pts2, pts);
+  const elig = await api('/api/v2/eligibility', { token: bT });
+  assert.equal(elig.data.realClaims, false);
+  assert.ok(elig.data.rows.some(r => r.nftEligible && r.id.includes(made.data.id)));
+  const rewardsAfter = await db.prepare('SELECT COUNT(*) AS n FROM rewards WHERE address = ?').bind(b).first();
+  assert.equal(rewardsAfter.n, rewardsBefore.n);
+  const founderRaid = await api('/api/admin/v2/raid', { method: 'POST', token: adm, body: { difficulty: 'legend', hp: 20 } });
+  const founderHit = await api('/api/v2/raids/' + encodeURIComponent(founderRaid.data.id) + '/hit', { method: 'POST', token: adm, body: { fighterId: '0008' } });
+  assert.equal(founderHit.status, 200, JSON.stringify(founderHit.data));
+  assert.equal(founderHit.data.founderBonus, false);
+  const founderElig = await api('/api/v2/eligibility', { token: adm });
+  assert.equal(founderElig.data.rows.some(r => r.id.includes(founderRaid.data.id)), false);
+
+  const prof = await api('/api/v2/profile/' + b + '?tokens=1', { token: aT });
+  assert.equal(prof.status, 200);
+  assert.equal(prof.data.founderBonus, false);
+  assert.equal(prof.data.importedRoster, null);
+  assert.equal(prof.data.importedNote, 'local-only');
+  assert.ok(prof.data.roster.some(r => r.source === 'game' && r.id === '0003' && r.xp > 0));
+  assert.equal(prof.data.chain.length, 1);
+  assert.equal(prof.data.chain[0].ownerKnown, true);
+  const battle = await api('/api/v2/guilds/battle', { method: 'POST', token: aT, body: { guildId: g2.data.id, fighterId: '0001' } });
+  assert.equal(battle.status, 200, JSON.stringify(battle.data));
+  const battle2 = await api('/api/v2/guilds/battle', { method: 'POST', token: aT, body: { guildId: g2.data.id, fighterId: '0009' } });
+  assert.equal(battle2.status, 409);
+
+  await api('/api/v2/presence', { method: 'POST', token: aT, body: { away: false } });
+  const quests = await api('/api/v2/quests', { token: aT });
+  const presence = quests.data.daily.find(q => q.id.endsWith(':presence'));
+  assert.equal(presence.done, true);
+  const claim1 = await api('/api/v2/quests/claim', { method: 'POST', token: aT, body: { id: presence.id } });
+  assert.equal(claim1.status, 200, JSON.stringify(claim1.data));
+  const beforePts = claim1.data.communityPoints;
+  const claim2 = await api('/api/v2/quests/claim', { method: 'POST', token: aT, body: { id: presence.id } });
+  assert.equal(claim2.status, 409);
+  const afterClaim = (await api('/api/v2/home', { token: aT })).data.me.communityPoints;
+  assert.equal(afterClaim, beforePts);
+
+  await db.prepare('DELETE FROM live_matches').run();
+  await db.prepare('DELETE FROM live_entries').run();
+  await db.prepare('DELETE FROM live_tournaments').run();
+  await db.prepare("DELETE FROM settings WHERE key = 'v2_schedule'").run();
+  const now = Date.now();
+  let sch = await api('/api/admin/v2/schedule', { method: 'POST', token: adm, body: { opensAt: now - 5000, startsAt: now - 1000, size: 4 } });
+  assert.equal(sch.status, 200, JSON.stringify(sch.data));
+  let tick = await api('/api/v2/scheduler/tick', { method: 'POST', token: aT, body: {} });
+  assert.equal(tick.status, 200);
+  let tour = await api('/api/v2/tournament', { token: aT });
+  assert.equal(tour.data.mode, 'live');
+  assert.equal(tour.data.v1, 'ghosts-bots');
+  assert.equal(tour.data.tournament.status, 'cancelled');
+  assert.equal(tour.data.tournament.reason, 'empty');
+
+  await db.prepare('DELETE FROM live_matches').run();
+  await db.prepare('DELETE FROM live_entries').run();
+  await db.prepare('DELETE FROM live_tournaments').run();
+  sch = await api('/api/admin/v2/schedule', { method: 'POST', token: adm, body: { opensAt: now - 5000, startsAt: now + 120000, size: 4 } });
+  assert.equal(sch.status, 200);
+  await api('/api/v2/scheduler/tick', { method: 'POST', token: aT, body: {} });
+  const j1 = await api('/api/v2/tournament/join', { method: 'POST', token: aT, body: { fighterId: '0001' } });
+  const j2 = await api('/api/v2/tournament/join', { method: 'POST', token: bT, body: { fighterId: '0002' } });
+  assert.equal(j1.status, 200, JSON.stringify(j1.data));
+  assert.equal(j2.status, 200, JSON.stringify(j2.data));
+  const jDup = await api('/api/v2/tournament/join', { method: 'POST', token: aT, body: { fighterId: '0001' } });
+  assert.equal(jDup.data.already, true);
+  await api('/api/admin/v2/schedule', { method: 'POST', token: adm, body: { opensAt: now - 8000, startsAt: now - 1000, size: 4 } });
+  await api('/api/v2/scheduler/tick', { method: 'POST', token: aT, body: {} });
+  tour = await api('/api/v2/tournament', { token: aT });
+  const bots = tour.data.tournament.entries.filter(e => e.bot);
+  assert.equal(bots.length, 2);
+  assert.ok(bots.every(e => e.label === 'BOT'));
+  assert.equal(tour.data.tournament.entries.some(e => !e.bot && e.label === 'BOT'), false);
+
+  await db.prepare('DELETE FROM live_matches').run();
+  await db.prepare('DELETE FROM live_entries').run();
+  await db.prepare('DELETE FROM live_tournaments').run();
+  await db.prepare('DELETE FROM point_grants WHERE reason = ?').bind('live-tournament').run();
+  const t0 = now;
+  await api('/api/admin/v2/schedule', { method: 'POST', token: adm, body: { opensAt: t0 - 5000, startsAt: t0 + 120000, size: 2 } });
+  await api('/api/v2/scheduler/tick', { method: 'POST', token: aT, body: {} });
+  assert.equal((await api('/api/v2/tournament/join', { method: 'POST', token: aT, body: { fighterId: '0001' } })).status, 200);
+  assert.equal((await api('/api/v2/tournament/join', { method: 'POST', token: bT, body: { fighterId: '0002' } })).status, 200);
+  await db.prepare('UPDATE profiles SET presence_at = 0 WHERE address = ?').bind(b).run();
+  await api('/api/admin/v2/schedule', { method: 'POST', token: adm, body: { opensAt: t0 - 9000, startsAt: t0 - 1000, size: 2 } });
+  const ptsBefore = (await api('/api/v2/home', { token: aT })).data.me.communityPoints;
+  await api('/api/v2/scheduler/tick', { method: 'POST', token: aT, body: {} });
+  await api('/api/v2/scheduler/tick', { method: 'POST', token: aT, body: {} });
+  tour = await api('/api/v2/tournament', { token: aT });
+  assert.equal(tour.data.tournament.status, 'complete', JSON.stringify(tour.data.tournament));
+  assert.ok(tour.data.tournament.matches.some(m => m.reason === 'disconnect'));
+  const ptsWin = (await api('/api/v2/home', { token: aT })).data.me.communityPoints;
+  assert.equal(ptsWin, ptsBefore + 80);
+  await api('/api/v2/scheduler/tick', { method: 'POST', token: aT, body: {} });
+  const ptsWin2 = (await api('/api/v2/home', { token: aT })).data.me.communityPoints;
+  assert.equal(ptsWin2, ptsWin);
+  const ranks = await api('/api/v2/ranks?kind=player&span=all');
+  assert.equal(ranks.status, 200);
+  assert.ok(ranks.data.rows.some(r => r.address === a));
+});
+
+test('boutique sandbox : prix serveur, une livraison, remboursement, points de classement intacts', async () => {
+  const buyer = Wallet.createRandom();
+  const token = await loginIp(buyer, '10.3.0.8');
+  const address = buyer.address.toLowerCase();
+  const before = await api('/api/me', { token });
+  const shop = await api('/api/v2/shop', { token });
+  assert.equal(shop.status, 200);
+  assert.equal(shop.data.paymentsEnabled, true);
+  assert.equal(shop.data.sandboxOnly, true);
+  assert.equal(shop.data.purchaseLimitConfirmed, false);
+  assert.equal(shop.data.purchaseLimit, 2);
+  assert.equal(shop.data.challenge.status, 'pending');
+  assert.equal(shop.data.challenge.countsAutomaticFights, false);
+  assert.equal(shop.data.challenge.rewardPoints, null);
+  assert.ok(shop.data.catalog.every(item => item.powerBonus === false && item.rewardOddsBonus === false));
+  const priced = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'frame-neon', amount: '0.01', currency: 'USD' } });
+  assert.equal(priced.status, 400);
+  const evil = await api('/api/v2/shop/orders', { method: 'POST', token, headers: { Origin: 'https://pirate.example' }, body: { sku: 'frame-neon' } });
+  assert.equal(evil.status, 403);
+  const created = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'frame-neon' } });
+  assert.equal(created.status, 200, JSON.stringify(created.data));
+  assert.equal(created.data.amount, '0.99');
+  assert.equal(created.data.currency, 'EUR');
+  const caps = await Promise.all([1, 2].map(() => api('/api/v2/shop/orders/capture', { method: 'POST', token, body: { id: created.data.id } })));
+  assert.ok(caps.some(x => x.status === 200 && x.data.status === 'delivered'));
+  assert.ok(caps.every(x => x.status === 200));
+  const grants = await db.prepare('SELECT COUNT(*) AS n FROM cosmetic_grants WHERE address = ? AND sku = ? AND revoked_at IS NULL').bind(address, 'frame-neon').first();
+  assert.equal(grants.n, 1);
+  const again = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'frame-neon' } });
+  assert.equal(again.status, 409);
+  const second = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'title-runner' } });
+  assert.equal(second.status, 200, JSON.stringify(second.data));
+  const third = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'fx-victory' } });
+  assert.equal(third.status, 429);
+  mock.paypalBadAmount = true;
+  const badOrder = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'theme-arena' } });
+  // La limite configurée est 2 commandes non échouées : title-runner est la 2e, theme-arena doit déjà être refusée.
+  assert.equal(badOrder.status, 429);
+  mock.paypalBadAmount = false;
+  await db.prepare("UPDATE shop_orders SET status = 'failed' WHERE id = ?").bind(second.data.id).run();
+  const mismatch = await api('/api/v2/shop/orders', { method: 'POST', token, body: { sku: 'theme-arena' } });
+  assert.equal(mismatch.status, 200, JSON.stringify(mismatch.data));
+  mock.paypalBadAmount = true;
+  const refused = await api('/api/v2/shop/orders/capture', { method: 'POST', token, body: { id: mismatch.data.id } });
+  assert.equal(refused.status, 409);
+  mock.paypalBadAmount = false;
+  const ownedAfterBad = await db.prepare('SELECT COUNT(*) AS n FROM cosmetic_grants WHERE address = ? AND sku = ? AND revoked_at IS NULL').bind(address, 'theme-arena').first();
+  assert.equal(ownedAfterBad.n, 0);
+  const event = {
+    id: 'WH-1',
+    event_type: 'PAYMENT.CAPTURE.REFUNDED',
+    resource: { id: 'CAP-' + created.data.paypalOrderId }
+  };
+  const hook = await api('/api/paypal/webhook', { method: 'POST', body: event, headers: { 'paypal-auth-algo': 'SHA256withRSA', 'paypal-cert-url': 'https://api.sandbox.paypal.com/cert', 'paypal-transmission-id': 't1', 'paypal-transmission-sig': 'sig', 'paypal-transmission-time': '2026-11-09T00:00:00Z' } });
+  assert.equal(hook.status, 200, JSON.stringify(hook.data));
+  const revoked = await db.prepare('SELECT revoked_at FROM cosmetic_grants WHERE address = ? AND sku = ?').bind(address, 'frame-neon').first();
+  assert.ok(revoked && revoked.revoked_at);
+  const replay = await api('/api/paypal/webhook', { method: 'POST', body: event, headers: { 'paypal-transmission-id': 't1' } });
+  assert.equal(replay.status, 200);
+  assert.equal(replay.data.duplicate, true);
+  mock.paypalVerify = 'FAILURE';
+  const forged = await api('/api/paypal/webhook', { method: 'POST', body: { id: 'WH-2', event_type: 'PAYMENT.CAPTURE.COMPLETED', resource: {} }, headers: { 'paypal-transmission-id': 't2' } });
+  assert.equal(forged.status, 401);
+  mock.paypalVerify = 'SUCCESS';
+  await db.prepare("INSERT INTO cosmetic_ledger (id, address, delta, reason, created_at) VALUES ('seed-shop', ?, 10, 'test-seed', 1)").bind(address).run();
+  const spent = await api('/api/v2/shop/spend', { method: 'POST', token, body: { sku: 'frame-points' } });
+  assert.equal(spent.status, 200, JSON.stringify(spent.data));
+  assert.equal(spent.data.cosmeticPoints, 0);
+  assert.equal(spent.data.competitivePoints, before.data.profile.points);
+  const founderNo = await api('/api/v2/shop/founder-import', { method: 'POST', token, body: {} });
+  assert.equal(founderNo.status, 403);
+  const adm = await loginIp(admin, '10.3.0.9');
+  const pts = (await api('/api/me', { token: adm })).data.profile.points;
+  const free = await api('/api/v2/shop/founder-import', { method: 'POST', token: adm, body: {} });
+  assert.equal(free.status, 200, JSON.stringify(free.data));
+  assert.equal(free.data.payment, false);
+  assert.equal(free.data.competitivePoints, pts);
+  const after = await api('/api/me', { token });
+  assert.equal(after.data.profile.points, before.data.profile.points);
+  assert.equal(after.data.profile.wins, before.data.profile.wins);
 });
