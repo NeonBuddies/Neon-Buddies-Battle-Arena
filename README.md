@@ -16,8 +16,8 @@ Ce dépôt **n’est pas audité** et **n’est pas déclaré prêt pour la prod
 
 ## Fonctionnalités v1
 
-- Galerie des 100 NFT, fiche, recherche, filtres, ajout d’images personnelles (hors classement).
-- Combat automatique (initiative, esquives, critiques, attaque spéciale, vitesses, passer).
+- Galerie des 100 NFT, fiche, recherche, filtres, ajout d’images personnelles **locales** (hors classement).
+- Combat **manuel** : tu déclenches l’attaque et le sort (bouton, tactile, ou touches A et S). Le serveur classe les coups. Un combat classé dure au moins 2 min 30. Rester inactif ne donne ni victoire ni points.
 - **Duel** local ou classé.
 - **Solo contre des bots** (Facile / Normal / Difficile / Cauchemar).
 - **PvP** : file d’attente sur le serveur, le jeu **interroge** le serveur (pas de WebSocket). Classement ELO. Si personne ne répond, un bot est proposé.
@@ -25,6 +25,14 @@ Ce dépôt **n’est pas audité** et **n’est pas déclaré prêt pour la prod
 - **Boss du jour** à phases, tentatives limitées.
 - XP, points, missions, classements. Hors ligne, solo / boss / tournoi local restent possibles.
 - Récompenses NFT **manuelles** (désactivées par défaut, voir plus haut), espace admin, notifications Telegram, profil fondateur, mode test par `eth_call` (lecture / estimation, pas d’envoi).
+
+## Ajout d’une image personnelle
+
+Le formulaire « Ajouter mon NFT » est **public**. Il enregistre une image redimensionnée dans le navigateur. Il ne prouve pas qu’un NFT t’appartient et n’écrit rien sur la chaîne.
+
+La rareté choisie ne compte pas en combat classé. Le serveur refuse tout identifiant hors des 100 Neon Buddies. L’import en ligne d’un personnage personnel est un article cosmétique à **4,99 EUR**, déjà approuvé, mais **le paiement est coupé** : PayPal n’est pas connecté, rien n’est encaissé. Le fondateur garde l’ajout local sans tarif et sans bonus de combat. Le catalogue (`GET /api/shop`) liste aussi cadre/titre 0,99 EUR, effet de sort ou de victoire 1,99 EUR, thème d’arène ou bannière 2,99 EUR. Tous sont `purchasable: false`. La boutique elle-même est pour une version suivante.
+
+Le PvP à deux joueurs et le tournoi interactif ne sont pas encore disponibles : l’interface le dit, et le serveur ne résout pas un combat automatique à ta place. Le duel, le solo et le boss se jouent coup par coup. Le solo classé a 3 tentatives par série, victoire ou défaite, sans remise à zéro calendaire. Une nouvelle série n’existe qu’après l’élimination et n’efface pas l’historique. Trois départs officiels sont proposés une fois par compte ; tu en choisis un. Ce n’est pas un NFT offert. Les 100 restent dans la galerie.
 
 ## Android et MetaMask (non vérifié sur un vrai téléphone)
 

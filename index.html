@@ -108,7 +108,8 @@
         <label class="toggle ranked-toggle" id="ranked-wrap" hidden><input type="checkbox" id="opt-ranked" checked> <span>Combat classé (serveur) — points, missions et récompenses NFT</span></label>
         <div class="center"><button class="btn btn-primary btn-xl" id="btn-fight">⚔ Lancer le combat</button></div>
         <div class="panel pvp-wait" id="pvp-wait" hidden aria-live="polite"></div>
-        <p class="hint">Le combat est automatique : vitesse, attaque, défense et coups critiques décident du vainqueur. Toutes les 3 actions, ton personnage lance son attaque spéciale.</p>
+        <p class="hint">Tu frappes toi-même. Attaque et sort ont un temps de recharge. Le combat classé dure au moins 2 min 30 et le serveur compte les coups. Rester inactif ne donne ni victoire ni points.</p>
+        <div id="starter-box" class="panel" hidden></div>
       </div>
 
       <div id="arena-fight" hidden>
@@ -125,13 +126,10 @@
           <div class="announce" id="announce" aria-live="polite"></div>
         </div>
         <div class="fight-controls">
-          <div class="chips" role="group" aria-label="Vitesse">
-            <button class="chip" data-speed="1">x1</button>
-            <button class="chip" data-speed="2">x2</button>
-            <button class="chip" data-speed="4">x4</button>
-          </div>
-          <button class="btn btn-small btn-ghost" id="btn-skip">Passer ⏭</button>
+          <button class="btn btn-primary" type="button" id="btn-attack">Attaque</button>
+          <button class="btn" type="button" id="btn-spell">Sort</button>
         </div>
+        <p class="hint" id="fight-cd">Clavier : A attaque, S sort. Le passe-temps et l’accélération ne raccourcissent pas un combat classé.</p>
         <ol class="battle-log" id="battle-log" aria-live="polite"></ol>
       </div>
     </section>
@@ -226,6 +224,7 @@
     <section class="view" data-view="ajouter" aria-labelledby="add-title" hidden>
       <div class="view-head"><h2 id="add-title">Ajouter mon NFT</h2></div>
       <div class="add-layout">
+        <p class="muted small" id="add-note"></p>
         <form class="panel add-form" id="add-form" novalidate>
           <label class="drop" id="drop">
             <input type="file" id="add-file" accept="image/*">

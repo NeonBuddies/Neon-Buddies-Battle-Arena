@@ -153,7 +153,7 @@
       '<p class="small"><b>Niveau ' + p.level + '</b> — ' + (p.xpNeeded ? p.xpInLevel + ' / ' + p.xpNeeded + ' XP' : 'niveau max') + '</p>' +
       '<div class="bar xpbar" style="margin-bottom:14px"><i style="width:' + xpPct.toFixed(1) + '%"></i></div>' +
       statsHTML(st) +
-      '<p class="small muted">Puissance ⚡' + E.power(st) + ' · Spéciale : ' + esc(E.SPECIALS[(ch.traits || {}).famille] || 'Frappe Néon') + ' · ' + p.wins + ' victoires / ' + p.losses + ' défaites</p>' +
+      '<p class="small muted"><span>Puissance ⚡' + E.power(st) + '</span> · <span>Sort :</span> <span translate="no">' + esc(E.characterSpell(ch).name) + '</span> — <span>' + esc(E.characterSpell(ch).blurb) + '</span> · <span>' + p.wins + ' victoires / ' + p.losses + ' défaites</span></p>' +
       '<div class="btn-row"><button class="btn btn-primary btn-small" data-set="A" data-id="' + esc(id) + '">⚔ Mon combattant</button>' +
       '<button class="btn btn-small" data-set="B" data-id="' + esc(id) + '">🎯 Adversaire</button></div></div></div>'
     );
@@ -209,16 +209,15 @@
     $('#slot-B-label').textContent = { duel: 'Adversaire', solo: 'Bot adversaire', pvp: 'Adversaire en ligne', tournoi: 'Tableau à 8', boss: 'Boss du jour' }[m];
     if (m === 'duel') { el.innerHTML = '<p class="small muted">Duel libre : choisis ton combattant et ton adversaire parmi la collection.</p>'; }
     if (m === 'solo') {
-      el.innerHTML = '<p class="small muted">Affronte un bot dont le niveau et les stats dépendent de la difficulté. Plus c’est dur, plus tu gagnes de points.</p><div class="chips" role="group" aria-label="Difficulté">' +
+      el.innerHTML = '<p class="small muted">Défi classé : 3 tentatives pour la série, victoire ou défaite. Pas de remise à zéro calendaire. Une nouvelle série seulement après l’élimination, l’historique reste. Hors ligne, l’entraînement est illimité.</p><div class="chips" role="group" aria-label="Difficulté">' +
         Object.keys(E.DIFFICULTIES).map(function (k) { var d = E.DIFFICULTIES[k];
           return '<button type="button" class="chip' + (save.settings.difficulty === k ? ' active' : '') + '" data-diff="' + k + '">' + esc(d.label) + ' <small>×' + d.points + '</small></button>'; }).join('') + '</div>';
     }
     if (m === 'pvp') {
-      el.innerHTML = online ? '<p class="small muted">Matchmaking en ligne par sondage : le serveur t’associe à un autre joueur connecté et calcule le combat. Classement ELO séparé. Personne en face ? Un BOT te sera proposé.</p>'
-        : '<p class="small warn-txt">Le PvP en ligne nécessite le serveur et un wallet connecté (signature). Hors ligne, tu peux affronter un BOT.</p>';
+      el.innerHTML = '<p class="small warn-txt">PvP interactif : pas encore disponible. Le serveur ne joue pas un combat automatique à ta place. Affronte un bot en solo pour t’entraîner.</p>';
     }
     if (m === 'tournoi') {
-      el.innerHTML = '<p class="small muted">Tournoi à élimination directe : 8 places (toi, des fantômes d’autres joueurs et des bots, pas des adversaires en direct). Points selon ton classement : 1er ' + E.TOURNAMENT_POINTS[1] + ' · finaliste ' + E.TOURNAMENT_POINTS[2] + ' · demi ' + E.TOURNAMENT_POINTS[3] + ' · quart ' + E.TOURNAMENT_POINTS[5] + '. Un tournoi classé par jour.</p>' +
+      el.innerHTML = '<p class="small warn-txt">Tournoi interactif : pas encore disponible. Aucun tableau n’est résolu automatiquement à ta place.</p>' +
         (online ? '<div id="tour-results" class="small"></div>' : '');
       if (online) W.api('/api/tournament/results', { auth: false }).then(function (d) {
         var t = $('#tour-results'); if (!t) return;
@@ -259,6 +258,16 @@
   function rankedActive() { return sessionOk() && $('#opt-ranked').checked; }
   function randomSeed() { return (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) >>> 0; }
   function displayOf(f) { var ch = byId(f.id); return ch || { id: f.id, name: f.name, image: (byId(f.baseId || '') || chars()[0]).image, rarity: f.rarity }; }
+  function manualClockMs() {
+    var c = window.__NB_TEST_CLOCK;
+    return c && typeof c.fightMs === 'number' ? c.fightMs : E.MANUAL.MIN_MS;
+  }
+  function manualNow(st) {
+    var c = window.__NB_TEST_CLOCK;
+    if (!c) return Date.now();
+    if (st && st._testNow == null) st._testNow = st.startedAt;
+    return st ? st._testNow : Date.now();
+  }
   async function startBattle(forced) {
     ensureSel();
     var m = forced && forced.mode || mode();
@@ -266,66 +275,162 @@
     if (!a) return;
     if (m === 'duel' && (!b || a.id === b.id)) { toast('Choisis deux personnages différents.'); return; }
     if (ui.starting) return;
-    if (m === 'pvp') return startPvp(a);
+    if (m === 'pvp' || m === 'tournoi') {
+      toast(m === 'pvp' ? 'PvP interactif : pas encore disponible. Aucun combat automatique n’est disputé à ta place.' : 'Tournoi interactif : pas encore disponible. Aucun tableau n’est résolu automatiquement à ta place.');
+      return;
+    }
     ui.starting = true;
     try {
       var online = rankedActive() && !a.custom && (m !== 'duel' || !b.custom);
       if (rankedActive() && !online) toast('Les NFT ajoutés combattent hors classement (combat local).');
       var diff = E.DIFFICULTIES[(forced && forced.difficulty) || save.settings.difficulty] || E.DIFFICULTIES.normal;
-      var result, server = null, extra = { mode: m }, want = null;
+      var extra = { mode: m };
       if (online) {
-        try {
-          if (m === 'duel') server = await W.api('/api/fight', { method: 'POST', body: { fighterId: a.id, opponentId: b.id } });
-          if (m === 'solo') server = await W.api('/api/fight', { method: 'POST', body: { mode: 'solo', difficulty: diff.id, fighterId: a.id, pvpFallback: !!(forced && forced.pvpFallback) } });
-          if (m === 'boss') server = await W.api('/api/boss', { method: 'POST', body: { fighterId: a.id } });
-          if (m === 'tournoi') server = await W.api('/api/tournament', { method: 'POST', body: { fighterId: a.id } });
-          result = server.result;
-        } catch (e) { toast(errMsg(e)); return; }
-        if (m === 'tournoi') extra.tournament = { placement: server.placement, points: server.tournamentPoints, bracket: server.bracket, matches: server.matches };
-        if (m === 'boss') extra.attemptsLeft = server.attemptsLeft;
+        var body = { fighterId: a.id, mode: m };
+        if (m === 'duel') body.opponentId = b.id;
+        if (m === 'solo') { body.difficulty = diff.id; body.pvpFallback = !!(forced && forced.pvpFallback); }
+        var started;
+        try { started = await W.api(m === 'boss' ? '/api/boss' : '/api/battle/start', { method: 'POST', body: body }); }
+        catch (e) { toast(errMsg(e)); return; }
+        var foe = m === 'duel' ? b : (m === 'boss' ? bossView(bossToday()) : displayOf({ id: started.battle.foe.id, name: started.battle.foe.name }));
+        ui.battle = { manual: true, ranked: true, id: started.id, view: started.battle, a: a, b: foe, extra: extra, timers: [], speed: 1, done: false };
+        openManual(ui.battle);
+        pollManual();
       } else {
-        var seed = randomSeed();
-        if (m === 'duel') result = E.simulateBattle(a, prog(a.id).level, b, prog(b.id).level, seed);
-        if (m === 'solo') { var bot = randomChar(a.id); result = E.simulateBattle(a, prog(a.id).level, bot, E.botLevel(diff.id, prog(a.id).level), seed, { scaleB: diff.scale }); }
-        if (m === 'boss') {
-          if (localBossLeft() <= 0) { toast('Tentatives contre le boss épuisées pour aujourd’hui. Reviens demain !'); return; }
-          var boss = bossToday();
-          result = E.simulateBattle(a, prog(a.id).level, E.bossCharacter(boss, window.NB_COLLECTION), E.bossLevel(prog(a.id).level), seed, { boss: boss });
-          if (save.local.bossDay !== E.dayKey()) { save.local.bossDay = E.dayKey(); save.local.bossUsed = 0; }
-          save.local.bossUsed++; extra.attemptsLeft = localBossLeft(); want = E.bossPoints(result);
-        }
-        if (m === 'tournoi') {
-          if (save.local.tourDay === E.dayKey() && !(forced && forced.again)) { toast('Tournoi local du jour déjà joué. Reviens demain !'); return; }
-          var lv = prog(a.id).level, ent = [{ ch: a, level: lv, label: a.name, player: true }];
-          while (ent.length < 8) { var c = randomChar(a.id); if (ent.some(function (x) { return x.ch.id === c.id; })) continue; ent.push({ ch: c, level: Math.max(1, lv + Math.floor(Math.random() * 3) - 1), label: 'BOT ' + c.name, bot: true }); }
-          for (var i = ent.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var tmp = ent[i]; ent[i] = ent[j]; ent[j] = tmp; }
-          var t = E.runTournament(ent, seed), me = t.entrants.filter(function (x) { return x.player; })[0].slot, ms = [];
-          t.rounds.forEach(function (r) { r.matches.forEach(function (mm) { if (mm.a === me || mm.b === me) ms.push(mm.a === me ? mm.result : E.flipResult(mm.result)); }); });
-          result = ms[ms.length - 1];
-          save.local.tourDay = E.dayKey();
-          want = E.TOURNAMENT_POINTS[t.placement[me]] || 0;
-          extra.tournament = { placement: t.placement[me], points: want, bracket: { rounds: t.rounds, entrants: t.entrants, champion: t.champion, me: me }, matches: ms };
-        }
+        if (m === 'boss' && localBossLeft() <= 0) { toast('Tentatives contre le boss épuisées pour aujourd’hui. Reviens demain !'); return; }
+        var opp, lvB, opts = { now: Date.now(), minMs: manualClockMs(), mode: m, difficulty: m === 'solo' ? diff.id : null };
+        if (m === 'duel') { opp = b; lvB = prog(b.id).level; }
+        else if (m === 'boss') { var boss = bossToday(); opp = E.bossCharacter(boss, window.NB_COLLECTION); lvB = E.bossLevel(prog(a.id).level); opts.boss = boss; }
+        else { opp = randomChar(a.id); lvB = E.botLevel(diff.id, prog(a.id).level); opts.scaleB = diff.scale; }
+        var state = E.createManualBattle(a, prog(a.id).level, opp, lvB, randomSeed(), opts);
+        var foeL = m === 'duel' ? b : (m === 'boss' ? bossView(bossToday()) : opp);
+        ui.battle = { manual: true, ranked: false, state: state, view: E.manualView(state, manualNow(state)), a: a, b: foeL, extra: extra, diff: diff, timers: [], speed: 1, done: false };
+        openManual(ui.battle);
+        localLoop();
       }
-      if (location.hash !== '#arene') { history.replaceState(null, '', '#arene'); route(); }
-      var bDisp = m === 'duel' ? b : (m === 'boss' ? bossView(bossToday()) : displayOf(result.fighters.B));
-      // Progression locale (enregistrée immédiatement : quitter le combat ne l'annule pas).
-      var matches = m === 'tournoi' ? extra.tournament.matches : [result], applied, mc = [];
-      matches.forEach(function (r) {
-        applied = E.applyBattleResult(save, r);
-        save.profile = applied.progress.profile; save.chars = applied.progress.chars; save.history = applied.progress.history;
-        if (save.history[0]) { save.history[0].mode = m; if (!byId(save.history[0].b)) save.history[0].bName = r.fighters.B.name; }
-        var mo = E.updateMissions(save.missions, r, save.profile.streak, E.dayKey());
-        save.missions = mo.state; save.profile.points += mo.bonusPoints; mc = mc.concat(mo.completed);
-      });
-      if (m === 'boss') delete save.chars[result.fighters.B.id];
-      if (m === 'solo' && !online) { want = Math.round(applied.summary.points * diff.points); }
-      if (want != null) { save.profile.points += want - applied.summary.points; applied.summary.points = want; if (save.history[0]) save.history[0].pts = want; }
-      persist();
-      ui.battle = { result: result, summary: applied.summary, a: a, b: bDisp, speed: save.settings.speed || 1, skip: false, timers: [], resolvers: [], done: false,
-        ranked: online, server: server, localMissions: mc, extra: extra };
-      showFight(ui.battle);
     } finally { ui.starting = false; }
+  }
+  function openManual(bt) {
+    if (location.hash !== '#arene') { history.replaceState(null, '', '#arene'); route(); }
+    $('#arena-setup').hidden = true; $('#arena-fight').hidden = false; $('#pvp-wait').hidden = true; $('#result').hidden = true;
+    $('#battle-log').innerHTML = '';
+    drawFighter('A', bt.a, { level: 1, maxHp: bt.view.you.maxHp, hp: bt.view.you.hp });
+    drawFighter('B', bt.b, { level: 1, maxHp: bt.view.foe.maxHp, hp: bt.view.foe.hp });
+    paintManual();
+  }
+  function paintManual() {
+    var bt = ui.battle; if (!bt || !bt.view) return;
+    var v = bt.view;
+    setHp('A', v.you.hp, v.you.maxHp);
+    setHp('B', v.foe.hp, v.foe.maxHp);
+    $('#turn-label').textContent = v.playerActions + ' actions';
+    var clock = window.__NB_TEST_CLOCK;
+    var now = bt.ranked ? (clock && clock.now != null ? clock.now : Date.now()) : manualNow(bt.state);
+    var atk = $('#btn-attack'), sp = $('#btn-spell');
+    if (atk) atk.disabled = !clock && now < v.you.atkReadyAt;
+    if (sp) sp.disabled = !clock && now < v.you.spellReadyAt;
+    var cd = $('#fight-cd');
+    if (cd && v.you.spell) cd.innerHTML = '<span translate="no">' + esc(v.you.spell.name) + '</span> <span></span>';
+    if (cd && v.you.spell) cd.lastChild.textContent = v.you.spell.blurb;
+    $('#battle-log').innerHTML = '';
+    v.events.slice().reverse().forEach(function (ev) { logLine(ev.text || '', ev.type === 'special' ? 'crit' : ''); });
+  }
+  function localLoop() {
+    var bt = ui.battle;
+    if (!bt || !bt.manual || bt.ranked || bt.done) return;
+    var now = manualNow(bt.state);
+    var ticked = E.manualTick(bt.state, now);
+    ticked._testNow = bt.state._testNow;
+    var fin = E.manualFinish(ticked, now);
+    bt.state = fin.state;
+    bt.state._testNow = ticked._testNow;
+    bt.view = E.manualView(bt.state, now);
+    paintManual();
+    if (fin.ok && bt.state.status !== 'active') return commitManual(bt, null);
+    bt.timer = setTimeout(localLoop, window.__NB_TEST_CLOCK ? 40 : 500);
+  }
+  function pollManual() {
+    var bt = ui.battle;
+    if (!bt || !bt.ranked || bt.done) return;
+    W.api('/api/battle?id=' + encodeURIComponent(bt.id)).then(function (d) {
+      if (!ui.battle || ui.battle !== bt) return;
+      bt.view = d.battle;
+      paintManual();
+      if (d.settled) return commitManual(bt, d.settled);
+      bt.timer = setTimeout(pollManual, 1500);
+    }).catch(function () { if (ui.battle === bt) bt.timer = setTimeout(pollManual, 2000); });
+  }
+  function manualClick(action) {
+    var bt = ui.battle;
+    if (!bt || !bt.manual || bt.done || bt.busy) return;
+    if (bt.ranked) return rankedAct(action);
+    var st = bt.state;
+    var now = manualNow(st);
+    var ready = action === 'spell' ? st.A.spellReadyAt : st.A.atkReadyAt;
+    if (window.__NB_TEST_CLOCK && now < ready) { st._testNow = ready; now = ready; }
+    var r = E.manualAct(st, action, now, st.seq + 1);
+    if (!r.ok) { if (r.reason === 'cooldown') toast('Temps de recharge pas encore écoulé.'); return; }
+    r.state._testNow = window.__NB_TEST_CLOCK ? now + (window.__NB_TEST_CLOCK.stepMs || 5000) : st._testNow;
+    bt.state = r.state;
+    bt.view = E.manualView(bt.state, manualNow(bt.state));
+    paintManual();
+    if (bt.state.status !== 'active') commitManual(bt, null);
+  }
+  function rankedAct(action) {
+    var bt = ui.battle;
+    var ready = action === 'spell' ? bt.view.you.spellReadyAt : bt.view.you.atkReadyAt;
+    var now = Date.now();
+    if (window.__NB_TEST_CLOCK) {
+      if (window.__NB_TEST_CLOCK.now == null) window.__NB_TEST_CLOCK.now = bt.view.startedAt;
+      now = Math.max(window.__NB_TEST_CLOCK.now, ready);
+      window.__NB_TEST_CLOCK.now = now;
+    }
+    bt.busy = true;
+    W.api('/api/battle/act', { method: 'POST', body: { id: bt.id, action: action, seq: bt.view.seq + 1 } }).then(function (d) {
+      bt.busy = false;
+      if (!ui.battle) return;
+      bt.view = d.battle;
+      if (window.__NB_TEST_CLOCK) window.__NB_TEST_CLOCK.now = now + (window.__NB_TEST_CLOCK.stepMs || 5000);
+      paintManual();
+      if (d.settled) commitManual(bt, d.settled);
+    }).catch(function (e) { bt.busy = false; toast(errMsg(e)); });
+  }
+  function commitManual(bt, settled) {
+    if (bt.done) return;
+    bt.done = true;
+    if (bt.timer) clearTimeout(bt.timer);
+    var result = settled ? settled.result : E.manualResult(bt.state);
+    var forfeit = settled ? !!settled.forfeit : !!bt.state.forfeit;
+    if (!bt.ranked && bt.extra.mode === 'boss' && !forfeit) {
+      if (save.local.bossDay !== E.dayKey()) { save.local.bossDay = E.dayKey(); save.local.bossUsed = 0; }
+      save.local.bossUsed++;
+      bt.extra.attemptsLeft = localBossLeft();
+    }
+    if (settled && settled.attemptsLeft != null) bt.extra.attemptsLeft = settled.attemptsLeft;
+    var applied;
+    if (!forfeit) {
+      applied = E.applyBattleResult(save, result);
+      save.profile = applied.progress.profile; save.chars = applied.progress.chars; save.history = applied.progress.history;
+      if (save.history[0]) save.history[0].mode = bt.extra.mode;
+      if (bt.extra.mode === 'boss') delete save.chars[result.fighters.B.id];
+      if (!bt.ranked && bt.extra.mode === 'solo' && bt.diff) {
+        var want = Math.round(applied.summary.points * bt.diff.points);
+        save.profile.points += want - applied.summary.points; applied.summary.points = want;
+      }
+      if (!bt.ranked && bt.extra.mode === 'boss') {
+        var bp = E.bossPoints(result);
+        save.profile.points += bp - applied.summary.points; applied.summary.points = bp;
+      }
+      persist();
+    } else {
+      applied = { summary: { playerWon: false, points: 0, xpWinner: 0, xpLoser: 0, winnerLevelBefore: 1, winnerLevelAfter: 1, loserLevelBefore: 1, loserLevelAfter: 1 } };
+      toast('Actions insuffisantes : pas de victoire ni de points.');
+    }
+    bt.result = result;
+    bt.summary = settled && !forfeit ? settled.summary : applied.summary;
+    bt.server = settled || { newRewards: [], summary: bt.summary };
+    bt.localMissions = [];
+    showResult(bt);
   }
   function showFight(bt) {
     $('#arena-setup').hidden = true; $('#arena-fight').hidden = false; $('#pvp-wait').hidden = true;
@@ -549,7 +654,9 @@
   function stopBattle(silent) {
     var b = ui.battle; if (!b) return;
     b.skip = true;
-    b.timers.forEach(clearTimeout); b.resolvers.forEach(function (r) { r(); });
+    if (b.timer) clearTimeout(b.timer);
+    if (b.timers) b.timers.forEach(clearTimeout);
+    if (b.resolvers) b.resolvers.forEach(function (r) { r(); });
     ui.battle = null;
     $('#result').hidden = true;
     if (!silent) renderArenaSetup();
@@ -590,6 +697,13 @@
       $('#add-family').innerHTML = '<option value="Personnalisé">Aucune (équilibré)</option>' + FAMILIES.map(function (f) { return '<option value="' + esc(f) + '">' + esc(f) + '</option>'; }).join('');
     }
     updateAddPreview();
+    var note = $('#add-note');
+    if (note) {
+      var sess = W.getSession();
+      if (W.apiEnabled() && sess && isAdminAddr(sess.address)) note.textContent = 'Le fondateur garde l’ajout local actuel, sans tarif. Ces images restent hors classement.';
+      else if (W.apiEnabled() && sess) note.textContent = 'Ajout en ligne d’un NFT personnel : 4,99 EUR approuvés, paiement désactivé. Aucun encaissement. Une image peut rester sur cet appareil, hors classement.';
+      else note.textContent = 'Image locale sur cet appareil : ce n’est pas un NFT vérifié sur la chaîne, et la rareté choisie ne compte pas en combat classé.';
+    }
     var list = chars().filter(function (c) { return c.custom; });
     $('#custom-grid').innerHTML = list.map(function (c) { return cardHTML(c, { del: true }); }).join('');
     $('#custom-empty').hidden = list.length > 0;
@@ -647,8 +761,14 @@
     invalidate();
     ui.upload = null;
     $('#add-form').reset(); $('#add-preview').hidden = true; $('#add-preview').removeAttribute('src'); $('#drop-text').hidden = false;
-    msg.className = 'form-msg ok'; msg.textContent = '« ' + entry.name + ' » a rejoint ta collection !';
-    toast('NFT ajouté : ' + entry.name);
+    msg.className = 'form-msg ok'; msg.textContent = '« ' + entry.name + ' » est enregistré sur cet appareil seulement.';
+    toast('Image locale ajoutée : ' + entry.name);
+    var sess = W.getSession();
+    if (W.apiEnabled() && sess && !isAdminAddr(sess.address)) {
+      W.api('/api/custom/import', { method: 'POST', body: {} }).catch(function (err) {
+        msg.textContent = '« ' + entry.name + ' » reste une image locale. ' + (err.message || '');
+      });
+    }
     renderAdd();
   }
   function deleteCustom(id) {
@@ -1061,14 +1181,20 @@
     });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && !$('#modal').hidden) closeModal();
+      if (!e.target.matches || !e.target.matches('input, textarea, select')) {
+        if (e.key === 'a' || e.key === 'A') { manualClick('attack'); }
+        if (e.key === 's' || e.key === 'S') { manualClick('spell'); }
+      }
       if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('.pod, [data-del]')) { e.preventDefault(); e.target.click(); }
     });
     $('#btn-fight').addEventListener('click', function () { A.click(); startBattle(); });
+    if ($('#btn-attack')) $('#btn-attack').addEventListener('click', function () { manualClick('attack'); });
+    if ($('#btn-spell')) $('#btn-spell').addEventListener('click', function () { manualClick('spell'); });
     $('#btn-quick').addEventListener('click', function () {
       A.click(); ensureSel(); ui.sel.B = randomChar(ui.sel.A).id; save.settings.mode = 'duel';
       history.replaceState(null, '', '#arene'); route(); startBattle();
     });
-    $('#btn-skip').addEventListener('click', skipBattle);
+    var skipBtn = $('#btn-skip'); if (skipBtn) skipBtn.addEventListener('click', skipBattle);
     $('#gal-search').addEventListener('input', function (e) { ui.galSearch = e.target.value; renderGallery(); });
     $('#gal-sort').addEventListener('change', function (e) { ui.galSort = e.target.value; renderGallery(); });
     $('#gal-filters').addEventListener('click', function (e) { var b = e.target.closest('[data-filter]'); if (b) { ui.galFilter = b.getAttribute('data-filter'); renderGallery(); } });

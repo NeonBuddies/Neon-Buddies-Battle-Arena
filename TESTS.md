@@ -6,15 +6,15 @@ Un ancien rapport contenait une ligne parasite « failing tests ». Le journal `
 
 ## Commandes et résultats
 
-### Moteur — `npm test` — 20/20
+### Moteur — `npm test` — 22/22
 
 Collection, stats, XP, combat déterministe, équilibrage, sauvegarde, missions, solo, boss, tournoi, ELO. Aucun réseau.
 
-### Worker + D1 local — `cd worker && npm test` — 20/20
+### Worker + D1 local — `cd worker && npm test` — 21/21 + fenêtre de combat
 
 `wrangler dev --local`. RPC et Telegram **simulés**. `REAL_CLAIMS=1` seulement dans ce harness. `worker/wrangler.toml` reste à `"0"`.
 
-Inclus : CORS, nonce (rejeu, expiration, mauvais signataire), admin par signature, combat serveur, anti-triche, missions, classement, réclamation, double réclamation, plafond de points, reçu **simulé**, webhook Telegram (secret, commandes, bouton d’un autre utilisateur **dans le chat admin** refusé), fondateur sans bonus, mode test sans transaction, solo / boss / tournoi / PvP par sondage.
+Inclus : CORS, nonce, admin par signature, **combat manuel** (cooldown, action dupliquée, fin anticipée refusée, inactif sans points, double clôture), anti-triche, missions, classement, réclamation, plafond de points, webhook Telegram, fondateur sans bonus, solo / boss, défi 3 tentatives, tournoi et PvP **en attente** (pas de combat automatique à la place du joueur), import personnel 4,99 EUR avec paiement coupé, catalogue non achetable.
 
 ERC-1271 : seule la magie ABI `0x1626ba7e` propre est acceptée. Un préfixe EIP-7702 `0xef0100` ne connecte que si l’appel simulé renvoie cette magie. Aucun `eth_sendTransaction` dans le mock RPC.
 
@@ -23,7 +23,7 @@ Atomicité, ajoutée et rejouée :
 - Deux réclamations simultanées du dernier jeton Commun : une seule réservation, l’autre reste `earned`, aucun `token_id` en double.
 - Combats concurrents : `battles` égale le nombre de lignes `fights`, et la somme des points du journal égale les points du joueur. Le PvP écrit les deux joueurs, l’ELO et la ligne de match dans la même transaction.
 
-### Navigateur — `CHROME=/usr/local/bin/google-chrome node worker/test/e2e-browser.mjs` — 40/40
+### Navigateur — `CHROME=/usr/local/bin/google-chrome node worker/test/e2e-browser.mjs` — 38/38
 
 Site déjà servi sur `http://127.0.0.1:8765`. Worker local. Wallets EIP-1193 **injectés**. L’envoi admin est intercepté et **n’est pas diffusé**. Lecture RPC Robinhood réelle uniquement pour le panneau on-chain (chaîne 4663, nom du contrat, `ownerOf` 1 / 7 / 50 / 100, `tokenURI`).
 

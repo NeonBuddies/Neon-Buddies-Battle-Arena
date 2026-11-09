@@ -54,7 +54,7 @@ const { chromium } = require('playwright-core');
 const browser = await chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', args: ['--no-sandbox'] });
 async function crawl(viewport, label) {
   const context = await browser.newContext({ viewport, locale: 'en-US' });
-  await context.addInitScript(() => { window.NB_I18N_DEBUG = true; });
+  await context.addInitScript(() => { window.NB_I18N_DEBUG = true; window.__NB_TEST_CLOCK = { fightMs: 0, stepMs: 5000 }; });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -98,19 +98,41 @@ async function crawl(viewport, label) {
     await page.click(`[data-mode="${m}"]`); await page.waitForTimeout(150);
     if (m === 'solo') for (const d of ['facile', 'difficile', 'cauchemar', 'normal']) await page.click(`[data-diff="${d}"]`);
     await scan('mode ' + m);
-    await page.click('#btn-fight'); await page.waitForTimeout(600);
-    if (m === 'pvp') { await scan('pvp hors ligne'); await page.click('[data-pvp="bot"]'); await page.waitForTimeout(600); }
-    await page.waitForTimeout(1200); await scan('combat ' + m);
-    if (await page.isVisible('#btn-skip')) await page.click('#btn-skip');
+    await page.click('#btn-fight'); await page.waitForTimeout(400);
+    if (m === 'pvp' || m === 'tournoi') { await scan('mode en attente ' + m); continue; }
+    for (let n = 0; n < 50; n++) {
+      const done = await page.evaluate(() => {
+        const result = document.querySelector('#result');
+        if (result && !result.hidden) return true;
+        const b = document.querySelector('#btn-attack');
+        if (b) b.click();
+        return false;
+      });
+      if (done) break;
+      await page.waitForTimeout(20);
+    }
     await page.waitForSelector('#result:not([hidden])', { timeout: 15000 });
     await page.waitForTimeout(300); await scan('résultat ' + m);
     await page.click('[data-res="setup"]'); await page.waitForTimeout(200);
   }
   // Limites quotidiennes hors ligne (boss épuisé, tournoi déjà joué)
   await page.click('[data-mode="boss"]');
-  for (let i = 0; i < 3; i++) { await page.click('#btn-fight'); await page.waitForTimeout(300); if (await page.isVisible('#btn-skip')) { await page.click('#btn-skip'); await page.waitForSelector('#result:not([hidden])'); await page.click('[data-res="setup"]'); } }
+  for (let i = 0; i < 3; i++) {
+    await page.click('#btn-fight');
+    for (let n = 0; n < 50; n++) {
+      const done = await page.evaluate(() => {
+        const result = document.querySelector('#result');
+        if (result && !result.hidden) return true;
+        const b = document.querySelector('#btn-attack');
+        if (b) b.click();
+        return false;
+      });
+      if (done) break;
+    }
+    if (await page.isVisible('#result:not([hidden])')) await page.click('[data-res="setup"]');
+  }
   await scan('boss épuisé');
-  await page.click('[data-mode="tournoi"]'); await page.click('#btn-fight'); await page.waitForTimeout(300); await scan('tournoi déjà joué');
+  await page.click('[data-mode="tournoi"]'); await page.click('#btn-fight'); await page.waitForTimeout(300); await scan('tournoi en attente');
   await page.click('[data-mode="duel"]');
   // Ajouter : erreurs, image, ajout, suppression
   await page.evaluate(() => { location.hash = 'ajouter'; }); await page.waitForTimeout(200);

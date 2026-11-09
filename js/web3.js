@@ -173,6 +173,7 @@
     if (opts.body !== undefined) h['Content-Type'] = 'application/json';
     var s = getSession();
     if (s && opts.auth !== false) h.Authorization = 'Bearer ' + s.token;
+    if (root.__NB_TEST_CLOCK && root.__NB_TEST_CLOCK.now != null) h['x-nb-test-now'] = String(root.__NB_TEST_CLOCK.now);
     var r = await fetch(CFG.API_URL.replace(/\/+$/, '') + path, { method: opts.method || 'GET', headers: h, body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined });
     var j = await r.json().catch(function () { return {}; });
     if (r.status === 401 && s) clearSession();

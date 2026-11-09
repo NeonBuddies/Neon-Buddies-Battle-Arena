@@ -57,7 +57,7 @@ execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${pers
 const sql = q => execSync(`npx wrangler d1 execute neon-buddies-arena --local --persist-to ${persist} --json --command ${JSON.stringify(q)}`, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] }).toString();
 const vars = {
   ADMIN_ADDRESS: admin.address, CHAIN_ID: '4663', RPC_URL: MOCK + '/rpc', NFT_CONTRACT: CONTRACT, ALLOWED_ORIGINS: SITE,
-  FIGHT_MIN_INTERVAL_MS: '150', CHECK_ONCHAIN: '1', TELEGRAM_API_BASE: MOCK, TELEGRAM_BOT_TOKEN: '1:FAUX', TELEGRAM_ADMIN_CHAT_ID: '42',
+  FIGHT_MIN_INTERVAL_MS: '150', HARNESS_FAST_FIGHT: '1', FIGHT_MIN_MS: '150000', CHECK_ONCHAIN: '1', TELEGRAM_API_BASE: MOCK, TELEGRAM_BOT_TOKEN: '1:FAUX', TELEGRAM_ADMIN_CHAT_ID: '42',
   TELEGRAM_WEBHOOK_SECRET: 'x', TELEGRAM_NOTIFY_VICTORIES: '0', PUBLIC_SITE_URL: SITE + '/', PVP_TIMEOUT_SEC: '4', REAL_CLAIMS: '1'
 };
 const args = ['wrangler', 'dev', '--local', '--port', String(PORT), '--ip', '127.0.0.1', '--persist-to', persist, '--show-interactive-dev-session=false'];
@@ -91,6 +91,7 @@ async function withWallet(ctx, wallet, startChain) {
     return { __err: { code: 4200, message: 'non géré ' + method } };
   });
   await ctx.addInitScript(() => {
+    window.__NB_TEST_CLOCK = window.__NB_TEST_CLOCK || { fightMs: 0, stepMs: 5000 };
     const ls = {};
     window.ethereum = {
       isMetaMask: true,
@@ -158,8 +159,14 @@ try {
     await page.click('[data-nav="arene"]');
     await page.waitForSelector('#ranked-wrap:not([hidden])');
     await page.click('[data-random="A"]');
-    await page.click('#btn-fight'); await page.click('#btn-skip');
-    await page.waitForSelector('#result:not([hidden])');
+    await page.click('#btn-fight');
+    await page.waitForSelector('#btn-attack', { timeout: 15000 });
+    for (let n = 0; n < 70; n++) {
+      const done = await page.evaluate(() => { const result = document.querySelector('#result'); if (result && !result.hidden) return true; const b = document.querySelector('#btn-attack'); if (b) b.click(); return false; });
+      if (done) break;
+      await page.waitForTimeout(120);
+    }
+    await page.waitForSelector('#result:not([hidden])', { timeout: 60000 });
     const resTxt = await page.$eval('#result-box', e => e.innerText);
     check(/Points classés \(serveur\)/.test(resTxt), 'Combat classé : résultat calculé et renvoyé par le serveur');
     await page.screenshot({ path: path.join(SHOTS, 'mobile-resultat-classe.png') });
@@ -169,8 +176,14 @@ try {
     let unlocked = false;
     for (let i = 0; i < 12 && !unlocked; i++) {
       await sleep(200);
-      await page.click('#btn-fight'); await page.click('#btn-skip');
-      await page.waitForSelector('#result:not([hidden])');
+      await page.click('#btn-fight');
+      await page.waitForSelector('#btn-attack', { timeout: 15000 });
+      for (let n = 0; n < 70; n++) {
+        const done = await page.evaluate(() => { const result = document.querySelector('#result'); if (result && !result.hidden) return true; const b = document.querySelector('#btn-attack'); if (b) b.click(); return false; });
+        if (done) break;
+        await page.waitForTimeout(120);
+      }
+      await page.waitForSelector('#result:not([hidden])', { timeout: 60000 });
       unlocked = /Récompense NFT Commun débloquée/.test(await page.$eval('#result-box', e => e.innerText));
       if (unlocked) await page.screenshot({ path: path.join(SHOTS, 'mobile-recompense-debloquee.png') });
       await page.click('[data-res="setup"]');
@@ -257,7 +270,7 @@ try {
     const mk = async (wallet, locale) => {
       const ctx = await browser.newContext(Object.assign({}, mobile, { locale }));
       await ctx.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: configJs(MOCK + '/rpc') }));
-      await ctx.addInitScript(() => { window.NB_I18N_DEBUG = true; });
+      await ctx.addInitScript(() => { window.NB_I18N_DEBUG = true; window.__NB_TEST_CLOCK = { fightMs: 0, stepMs: 5000 }; });
       await withWallet(ctx, wallet, '0x1237');
       const page = await ctx.newPage(); watch(page, 'modes-' + locale);
       await page.goto(SITE + '/#recompenses');
@@ -271,8 +284,14 @@ try {
     const fight = async (page, mode, extra) => {
       await page.click('[data-nav="arene"]'); await page.click(`[data-mode="${mode}"]`); if (extra) await extra();
       await page.waitForTimeout(250); await page.click('#btn-fight');
-      await page.waitForSelector('#btn-skip:visible', { timeout: 15000 }); await page.click('#btn-skip');
-      await page.waitForSelector('#result:not([hidden])'); await page.waitForTimeout(250);
+      if (mode === 'pvp' || mode === 'tournoi') { await page.waitForTimeout(400); return page.$eval('#toast', e => e.innerText); }
+      await page.waitForSelector('#btn-attack', { timeout: 15000 });
+      for (let n = 0; n < 70; n++) {
+        const done = await page.evaluate(() => { const result = document.querySelector('#result'); if (result && !result.hidden) return true; const b = document.querySelector('#btn-attack'); if (b) b.click(); return false; });
+        if (done) break;
+        await page.waitForTimeout(120);
+      }
+      await page.waitForSelector('#result:not([hidden])', { timeout: 60000 }); await page.waitForTimeout(250);
       return page.$eval('#result-box', e => e.innerText);
     };
     let t = await fight(A.page, 'solo', () => A.page.click('[data-diff="cauchemar"]'));
@@ -283,39 +302,20 @@ try {
     await scan(A.page, 'résultat boss EN'); await A.page.click('[data-res="setup"]');
     await sleep(200);
     t = await fight(A.page, 'tournoi');
-    check(/(Champion!|Finalist|Semi-finalist|Quarter-finalist)/.test(t) && /Quarter-finals/.test(t), 'TOURNOI classé (EN) : tableau à 8 et classement affichés');
+    check(/not available yet/i.test(t), 'TOURNOI : mode interactif indiqué comme pas encore disponible (EN) → ' + t.replace(/\s+/g, ' '));
     await A.page.screenshot({ path: path.join(SHOTS, 'mobile-tournoi-en.png') });
-    await scan(A.page, 'résultat tournoi EN'); await A.page.click('[data-res="setup"]');
-    await sleep(200);
+    await scan(A.page, 'tournoi en attente EN');
     t = await fight(B.page, 'tournoi');
-    check(/Quarts de finale/.test(t), 'TOURNOI classé (FR) pour le 2e joueur');
-    await B.page.click('[data-res="setup"]');
-    // PvP : A attend, B rejoint → les deux navigateurs voient le même match
-    await sleep(200);
+    check(/pas encore disponible/.test(t), 'TOURNOI : mode interactif indiqué comme pas encore disponible (FR)');
     await A.page.click('[data-mode="pvp"]'); await A.page.click('#btn-fight');
-    await A.page.waitForSelector('#pvp-wait:not([hidden]) .pulse');
-    await scan(A.page, 'pvp attente EN');
+    await A.page.waitForTimeout(300);
+    const pvpEn = await A.page.$eval('#toast', e => e.innerText);
+    check(/not available yet/i.test(pvpEn), 'PvP : pas présenté comme un combat interactif (EN) → ' + pvpEn.replace(/\s+/g, ' '));
+    await scan(A.page, 'pvp en attente EN');
     await B.page.click('[data-mode="pvp"]'); await B.page.click('#btn-fight');
-    await Promise.all([A.page.waitForSelector('#arena-fight:not([hidden])', { timeout: 15000 }), B.page.waitForSelector('#arena-fight:not([hidden])', { timeout: 15000 })]);
-    for (const P of [A.page, B.page]) { await P.click('#btn-skip'); await P.waitForSelector('#result:not([hidden])'); }
-    const ta = await A.page.$eval('#result-box', e => e.innerText), tb = await B.page.$eval('#result-box', e => e.innerText);
-    const winA = /VICTORY/.test(ta), winB = /VICTOIRE/.test(tb);
-    check(winA !== winB && /ELO/.test(ta) && /Online PvP/i.test(ta) && /PvP en ligne/i.test(tb), 'PvP : appariement de 2 navigateurs, combat serveur, un seul vainqueur, ELO affiché (EN + FR)' + ' → ' + ta.replace(/\s+/g, ' ').slice(0, 200) + ' || ' + tb.replace(/\s+/g, ' ').slice(0, 200));
+    const pvpFr = await B.page.$eval('#toast', e => e.innerText);
+    check(/pas encore disponible/.test(pvpFr), 'PvP : pas présenté comme un combat interactif (FR)');
     await A.page.screenshot({ path: path.join(SHOTS, 'mobile-pvp-en.png') });
-    await scan(A.page, 'résultat pvp EN');
-    await A.page.click('[data-res="setup"]'); await B.page.click('[data-res="setup"]');
-    const elo = await (await fetch(API + '/api/leaderboard?type=elo')).json();
-    check(elo.players.length === 2 && elo.players[0].rating + elo.players[1].rating === 2000, 'Classement ELO : 2 joueurs, somme des ratings conservée');
-    // Personne en face → BOT proposé
-    await sleep(200);
-    await A.page.click('#btn-fight');
-    await A.page.waitForSelector('[data-pvp="bot"]', { timeout: 15000 });
-    check(/No online opponent right now/.test(await A.page.$eval('#pvp-wait', e => e.innerText)), 'PvP sans adversaire : délai dépassé, BOT proposé (EN)');
-    await scan(A.page, 'pvp délai EN');
-    await A.page.click('[data-pvp="bot"]');
-    await A.page.waitForSelector('#btn-skip:visible'); await A.page.click('#btn-skip'); await A.page.waitForSelector('#result:not([hidden])');
-    const fbt = await A.page.$eval('#result-box', e => e.innerText); check(/Solo vs bots/i.test(fbt), 'Repli BOT après PvP : combat solo classé' + ' → ' + fbt.replace(/\s+/g, ' ').slice(0, 200));
-    await A.page.click('[data-res="setup"]');
     // Bascule de langue en direct, conservée
     await A.page.click('[data-lang="fr"]'); await A.page.waitForTimeout(200);
     const frNav = await A.page.$eval('[data-nav="recompenses"]', e => e.textContent);

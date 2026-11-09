@@ -2,7 +2,7 @@
   "name": "neon-buddies-arena-api",
   "version": "1.0.0",
   "scripts": {
-    "test": "node --test test/worker.test.mjs",
+    "test": "node --test test/fight-window.test.mjs test/worker.test.mjs",
     "build": "wrangler deploy --dry-run --outdir dist",
     "dev": "wrangler dev",
     "db:local": "wrangler d1 execute neon-buddies-arena --local --file=schema.sql",

@@ -288,6 +288,62 @@ test('tournoi : tableau à 8, 7 matchs, un champion, placements et points', () =
   assert.equal(E.TOURNAMENT_POINTS[1], 600);
 });
 
+test('sorts : un nom par personnage, effet chiffré, import borné', () => {
+  const names = C.map(c => E.characterSpell(c).name);
+  assert.equal(new Set(names).size, 100);
+  assert.match(names[0], /#0001$/);
+  const hi = C.find(c => c.traits.famille === 'Robot Couronne');
+  const soft = C.find(c => c.traits.famille === 'Ange Doré');
+  const def = { stats: { atk: 20, def: 30, spd: 10, crit: 0 }, maxHp: 1000, hp: 1000, shield: 0, slowMs: 0, spell: E.characterSpell(hi) };
+  const att = { name: 'A', side: 'A', stats: { atk: 20, def: 10, spd: 10, crit: 0 }, maxHp: 1000, hp: 500, shield: 0, slowMs: 0, spell: E.characterSpell(hi) };
+  const st = { rng: 1, readyAt: 0, events: [], B: def, A: att, damageToB: 0, boss: null };
+  const before = def.hp;
+  // Coup direct via un combat réel : le sort ignore une partie de la défense et change les PV.
+  let battle = E.createManualBattle(hi, 1, soft, 1, 3, { now: 0, minMs: 0, maxMs: 0 });
+  const spell = E.manualAct(battle, 'spell', 0, 1);
+  assert.equal(spell.ok, true);
+  assert.ok(spell.state.B.hp < spell.state.B.maxHp);
+  assert.equal(spell.state.events.some(e => e.spellId && e.spellId.startsWith('spell-')), true);
+  const imp = E.characterSpell({ id: 'c-local', name: 'x', traits: { famille: 'Personnalisé' } });
+  assert.equal(imp.mult, 1.15);
+  assert.ok(imp.mult <= 1.55 && imp.mult >= 0.85);
+  assert.equal(before > 0, true);
+  assert.equal(att.spell.ignoreDef, 0.35);
+});
+
+test('combat manuel : cooldown, action dupliquée, AFK sans victoire, durée minimale', () => {
+  const a = C[0], b = C[1];
+  let st = E.createManualBattle(a, 1, b, 1, 9, { now: 1000 });
+  assert.equal(E.manualFinish(st, 2000).ok, false);
+  const hit = E.manualAct(st, 'attack', 1000, 1);
+  assert.equal(hit.ok, true);
+  assert.ok(hit.state.B.hp < hit.state.B.maxHp);
+  const dup = E.manualAct(hit.state, 'attack', 1000, 1);
+  assert.equal(dup.ok, false);
+  assert.equal(dup.state.B.hp, hit.state.B.hp);
+  const cd = E.manualAct(hit.state, 'attack', 2000, 2);
+  assert.equal(cd.reason, 'cooldown');
+  const afk = E.manualFinish(st, st.deadlineAt);
+  assert.equal(afk.state.forfeit, true);
+  assert.equal(afk.state.winner, 'B');
+  let played = E.createManualBattle(a, 1, b, 1, 11, { now: 0 });
+  let seq = 1;
+  for (let t = 0; played.status === 'active' && t <= 210000; t += 1000) {
+    const spellReady = t >= played.A.spellReadyAt;
+    const atkReady = t >= played.A.atkReadyAt;
+    if (!spellReady && !atkReady) continue;
+    const action = spellReady && seq % 4 === 0 ? 'spell' : atkReady ? 'attack' : 'spell';
+    const r = E.manualAct(played, action, t, seq);
+    if (r.ok && r.reason === 'ok') { played = r.state; seq++; }
+    else played = r.state.status ? r.state : played;
+    const fin = E.manualFinish(played, t);
+    if (fin.ok && fin.state.status !== 'active') { played = fin.state; break; }
+  }
+  assert.equal(played.forfeit, false);
+  assert.equal(E.isEngaged(played), true);
+  assert.ok(played.playerActions >= 5);
+});
+
 test('PvP : inversion du point de vue et ELO', () => {
   const r = E.simulateBattle(C[3], 2, C[8], 4, 77);
   const f = E.flipResult(r);

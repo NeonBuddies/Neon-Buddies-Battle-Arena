@@ -3,6 +3,7 @@
    Aucune clé privée n'est stockée : les transferts sont signés par l'administrateur dans son propre wallet. */
 import E from '../../js/engine.js';
 import { CHAIN_ID, NFT_CONTRACT, TIERS, TIER_FR, REWARD_RULES, rewardStock, COLLECTION } from './config.js';
+import { createLiveApi } from './live.js';
 import {
   isAddress, lower, hashPersonalMessage, encodeSafeTransferFrom, encodeOwnerOf, encodeIsValidSignature,
   is1271Magic, addrTopic, uintTopic, TRANSFER_TOPIC, randomHex, sha256Hex
@@ -341,9 +342,15 @@ async function settleProgress(env, ctx, book) {
   };
 }
 
+function rejectUnrankedImport(id) {
+  const s = String(id || '');
+  if (s.startsWith('c-') || s === 'apercu') throw new HttpError(400, 'Image ajoutée refusée en classé : la rareté et les stats choisies ne sont pas vérifiées et ne comptent pas.');
+}
 /** Duel classique ou SOLO contre un bot (difficulté). Le client n'envoie que ses choix. */
 async function fight(req, env, ctx, sess) {
   const b = await body(req);
+  rejectUnrankedImport(b.fighterId);
+  rejectUnrankedImport(b.opponentId);
   const a = CHAR_BY_ID.get(String(b.fighterId || ''));
   if (!a) throw new HttpError(400, 'Combattant inconnu (combats classés : uniquement les 100 Neon Buddies).');
   const mode = b.mode === 'solo' ? 'solo' : 'duel';
@@ -370,6 +377,7 @@ async function fight(req, env, ctx, sess) {
 /** BOSS du jour : tentatives limitées par jour, combat calculé par le serveur. */
 async function bossFight(req, env, ctx, sess) {
   const b = await body(req);
+  rejectUnrankedImport(b.fighterId);
   const a = CHAR_BY_ID.get(String(b.fighterId || ''));
   if (!a) throw new HttpError(400, 'Combattant inconnu');
   const max = num(env.BOSS_ATTEMPTS_PER_DAY, E.BOSS_ATTEMPTS_PER_DAY);
@@ -393,6 +401,7 @@ async function bossInfo(env, sess) {
 /** TOURNOI quotidien : 8 places (le joueur, des « fantômes » d'autres joueurs, des bots), calculé par le serveur. */
 async function tournament(req, env, ctx, sess) {
   const b = await body(req);
+  rejectUnrankedImport(b.fighterId);
   const a = CHAR_BY_ID.get(String(b.fighterId || ''));
   if (!a) throw new HttpError(400, 'Combattant inconnu');
   const day = E.dayKey(), max = num(env.TOURNAMENTS_PER_DAY, 1);
@@ -473,6 +482,7 @@ async function tryPair(env, ctx, sess, fighterId) {
 }
 async function pvpJoin(req, env, ctx, sess) {
   const b = await body(req);
+  rejectUnrankedImport(b.fighterId);
   const f = CHAR_BY_ID.get(String(b.fighterId || ''));
   if (!f) throw new HttpError(400, 'Combattant inconnu');
   await rateLimit(env, 'pvpjoin:' + sess.address, 20, 60);
@@ -755,6 +765,11 @@ async function adminTx(env, ctx, id, txHash) {
   return { reward: rewardView(await env.DB.prepare('SELECT * FROM rewards WHERE id = ?1').bind(id).first()), verified: true };
 }
 
+const live = createLiveApi({
+  E, HttpError, CHAR_BY_ID, COLLECTION, randomHex, rand32, randomChar, fightLock, loadChars, lvOf,
+  recordMatches, getPlayer, publicProfile, rateLimit, dayStart
+});
+
 /* ---------- routeur ---------- */
 async function route(req, env, ctx) {
   const url = new URL(req.url), path = url.pathname.replace(/\/+$/, ''), m = req.method;
@@ -844,18 +859,42 @@ async function route(req, env, ctx) {
     return { name };
   }
 
-  if (m === 'POST' && path === '/api/fight') return fight(req, env, ctx, await auth(req, env));
-  if (m === 'POST' && path === '/api/boss') return bossFight(req, env, ctx, await auth(req, env));
+  if (m === 'POST' && path === '/api/custom/import') {
+    const s = await auth(req, env);
+    await rateLimit(env, 'customimp:' + s.address, 10, 3600);
+    await body(req);
+    const product = live.importProduct();
+    if (isFounder(env, s.address)) return { accepted: false, ranked: false, founder: true, pendingPayment: false, paymentsLive: false, localOnly: true, priceEur: null, productId: product.id };
+    throw new HttpError(403, 'Ajout en ligne d’un NFT personnel : 4,99 EUR approuvés, paiement désactivé (PayPal non connecté). Aucun encaissement. L’image peut rester sur cet appareil, hors classement.');
+  }
+
+  if (m === 'GET' && path === '/api/shop') {
+    await rateLimit(env, 'shop:' + ip, 60, 60);
+    return live.shop();
+  }
+  if (m === 'GET' && path === '/api/starter') return live.starter(env, await auth(req, env));
+  if (m === 'POST' && path === '/api/starter') return live.chooseStarter(req, env, await auth(req, env));
+  if (m === 'GET' && path === '/api/challenge') return live.challenge(env, await auth(req, env));
+  if (m === 'POST' && path === '/api/challenge/new-run') return live.newRun(req, env, await auth(req, env));
+  if (m === 'POST' && path === '/api/battle/start') return live.startBattle(req, env, ctx, await auth(req, env));
+  if (m === 'POST' && path === '/api/battle/act') return live.actBattle(req, env, ctx, await auth(req, env));
+  if (m === 'POST' && path === '/api/battle/finish') return live.finishBattle(req, env, ctx, await auth(req, env));
+  if (m === 'GET' && path === '/api/battle') return live.getBattle(req, env, ctx, await auth(req, env));
+
+  if (m === 'POST' && path === '/api/fight') throw new HttpError(410, 'Le combat classé est manuel : le serveur n’envoie pas le résultat à ta place.');
+  if (m === 'POST' && path === '/api/boss') return live.startBattle(req, env, ctx, await auth(req, env));
   if (m === 'GET' && path === '/api/boss') { await rateLimit(env, 'bossinfo:' + ip, 60, 60); let s0 = null; try { s0 = await auth(req, env); } catch (e) { /* anonyme */ } return bossInfo(env, s0); }
-  if (m === 'POST' && path === '/api/tournament') return tournament(req, env, ctx, await auth(req, env));
+  if (m === 'POST' && path === '/api/tournament') throw new HttpError(409, 'Le tournoi interactif n’est pas encore disponible. Aucun tableau n’est joué automatiquement à ta place.');
   if (m === 'GET' && path === '/api/tournament/results') {
     await rateLimit(env, 'tourres:' + ip, 60, 60);
     const day = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get('day') || '') ? url.searchParams.get('day') : E.dayKey();
     const rows = await env.DB.prepare('SELECT t.address, p.name, t.placement, t.points, t.created_at FROM tournaments t LEFT JOIN players p ON p.address = t.address WHERE t.day = ?1 ORDER BY t.placement, t.created_at LIMIT 50').bind(day).all();
     return { day, results: rows.results.map(r => ({ address: r.address, name: r.name, placement: r.placement, points: r.points, founder: isFounder(env, r.address) })) };
   }
-  if (m === 'POST' && path === '/api/pvp/join') return pvpJoin(req, env, ctx, await auth(req, env));
-  if (m === 'GET' && path === '/api/pvp/status') return pvpStatus(env, ctx, await auth(req, env));
+  if (m === 'POST' && path === '/api/pvp/join' || m === 'GET' && path === '/api/pvp/status') {
+    await auth(req, env);
+    return { status: 'pending', interactive: false, message: 'Le PvP interactif à deux joueurs n’est pas encore disponible. Aucun combat automatique n’est disputé à ta place.' };
+  }
   if (m === 'POST' && path === '/api/pvp/leave') { const s0 = await auth(req, env); await env.DB.prepare('DELETE FROM pvp_queue WHERE address = ?1 AND match_id IS NULL').bind(s0.address).run(); return { ok: true }; }
 
   let mm;

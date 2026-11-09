@@ -90,7 +90,7 @@ test.before(async () => {
     REWARD_STOCK: JSON.stringify({ Common: [1, 3], Rare: [5], Epic: [7], Legendary: [2], Special: [12] }),
     TELEGRAM_API_BASE: base, TELEGRAM_BOT_TOKEN: TG_TOKEN, TELEGRAM_ADMIN_CHAT_ID: ADMIN_CHAT, TELEGRAM_WEBHOOK_SECRET: TG_SECRET,
     TELEGRAM_NOTIFY_VICTORIES: '1', VICTORY_NOTIFY_INTERVAL_SEC: '600', STOCK_LOW_THRESHOLD: '1', PVP_TIMEOUT_SEC: '3', BOSS_ATTEMPTS_PER_DAY: '3',
-    REAL_CLAIMS: '1',
+    REAL_CLAIMS: '1', HARNESS_FAST_FIGHT: '1', FIGHT_MIN_MS: '150000',
     PUBLIC_SITE_URL: 'https://exemple.github.io/neon-buddies-battle-arena/'
   };
   const args = ['wrangler', 'dev', '--local', '--port', String(PORT), '--ip', '127.0.0.1', '--persist-to', persist, '--show-interactive-dev-session=false'];
@@ -113,6 +113,26 @@ async function api(p, { method = 'GET', body, token, headers = {} } = {}) {
   const r = await fetch(apiBase + p, { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined });
   const text = await r.text();
   return { status: r.status, data: text ? JSON.parse(text) : null, headers: r.headers };
+}
+async function play(token, body) {
+  const start = await api('/api/battle/start', { method: 'POST', token, body });
+  if (start.status !== 200) return start;
+  let battle = start.data.battle;
+  let now = battle.startedAt;
+  let guard = 0;
+  while (battle && battle.status === 'active' && guard++ < 90) {
+    let t = Math.max(now, Math.min(battle.you.atkReadyAt, battle.you.spellReadyAt));
+    const action = battle.seq % 4 === 3 && t >= battle.you.spellReadyAt ? 'spell' : 'attack';
+    t = Math.max(t, action === 'spell' ? battle.you.spellReadyAt : battle.you.atkReadyAt);
+    const act = await api('/api/battle/act', { method: 'POST', token, body: { id: start.data.id, action, seq: battle.seq + 1 }, headers: { 'x-nb-test-now': String(t) } });
+    if (act.status !== 200) return act;
+    if (act.data.settled) return { status: 200, data: Object.assign({ seed: start.data.seed, id: start.data.id }, act.data.settled) };
+    battle = act.data.battle;
+    now = t + 1000;
+  }
+  const fin = await api('/api/battle/finish', { method: 'POST', token, body: { id: start.data.id }, headers: { 'x-nb-test-now': String(battle ? battle.deadlineAt : now) } });
+  if (fin.data && start.data) fin.data.seed = fin.data.seed || start.data.seed;
+  return fin;
 }
 async function login(w) {
   const n = await api('/api/auth/nonce', { method: 'POST', body: { address: w.address } });
@@ -220,42 +240,61 @@ test('admin : accès réservé à l\u2019adresse admin signée', async () => {
   assert.equal(s.status, 200); assert.equal(s.data.telegram, true);
 });
 
-test('combat classé : résultat calculé par le serveur, rejouable avec la graine, champs falsifiés ignorés', async () => {
-  const r = await api('/api/fight', { method: 'POST', token: pTok, body: { fighterId: '0002', opponentId: '0001', points: 999999, winner: 'A', seed: 1 } });
+test('combat manuel : le serveur ignore le vainqueur envoyé et n’accorde rien sans actions', async () => {
+  const early = await api('/api/battle/start', { method: 'POST', token: pTok, body: { fighterId: '0002', opponentId: '0001', points: 999999, winner: 'A', seed: 1 } });
+  assert.equal(early.status, 200, JSON.stringify(early.data));
+  assert.notEqual(early.data.seed, 1);
+  assert.equal(early.data.battle.status, 'active');
+  const tooSoon = await api('/api/battle/finish', { method: 'POST', token: pTok, body: { id: early.data.id, winner: 'A', points: 999999 }, headers: { 'x-nb-test-now': String(early.data.battle.startedAt + 1000) } });
+  assert.equal(tooSoon.status, 425);
+  const afk = await api('/api/battle/finish', { method: 'POST', token: pTok, body: { id: early.data.id }, headers: { 'x-nb-test-now': String(early.data.battle.deadlineAt) } });
+  assert.equal(afk.status, 200, JSON.stringify(afk.data));
+  assert.equal(afk.data.forfeit, true);
+  assert.equal(afk.data.summary.points, 0);
+  const me = await api('/api/me', { token: pTok });
+  assert.equal(me.data.profile.battles, 0);
+  await sleep(200);
+  const r = await play(pTok, { fighterId: '0002', opponentId: '0001', points: 999999, winner: 'A', seed: 1 });
   assert.equal(r.status, 200, JSON.stringify(r.data));
-  const { seed, result, summary, profile } = r.data;
-  assert.notEqual(seed, 1);
-  const replay = E.simulateBattle(C.find(c => c.id === '0002'), result.fighters.A.level, C.find(c => c.id === '0001'), result.fighters.B.level, seed);
-  assert.deepEqual(replay, result, 'même graine => même combat');
-  assert.equal(profile.points, summary.points);
-  assert.ok(profile.points < 999999);
-  assert.equal(profile.battles, 1);
+  assert.equal(r.data.forfeit, false);
+  assert.equal(r.data.result.manual, true);
+  assert.ok(r.data.result.playerActions >= 5);
+  assert.equal(r.data.profile.points, r.data.summary.points);
+  assert.ok(r.data.profile.points < 999999);
+  assert.equal(r.data.profile.battles, 1);
   const row = await db.prepare('SELECT seed, winner FROM fights WHERE address = ?').bind(player.address.toLowerCase()).first();
-  assert.equal(row.seed, seed); assert.equal(row.winner, result.winner);
+  assert.equal(row.seed, r.data.seed); assert.equal(row.winner, r.data.result.winner);
+  const again = await api('/api/battle/finish', { method: 'POST', token: pTok, body: { id: r.data.id } });
+  assert.equal(again.status, 200);
+  assert.equal(again.data.profile.points, r.data.profile.points);
 });
 
 test('anti-triche : personnages inconnus, intervalle minimum, adversaire aléatoire', async () => {
   await sleep(200);
-  assert.equal((await api('/api/fight', { method: 'POST', token: pTok, body: { fighterId: 'c-perso' } })).status, 400);
-  assert.equal((await api('/api/fight', { method: 'POST', token: pTok, body: { fighterId: '0002', opponentId: '0002' } })).status, 400);
-  assert.equal((await api('/api/fight', { method: 'POST', token: pTok, body: { fighterId: '0999' } })).status, 400);
-  const a = await api('/api/fight', { method: 'POST', token: pTok, body: { fighterId: '0010' } });
-  assert.equal(a.status, 200); assert.notEqual(a.data.result.fighters.B.id, '0010');
-  const b = await api('/api/fight', { method: 'POST', token: pTok, body: { fighterId: '0010' } });
-  assert.equal(b.status, 429, 'combat trop rapproché refusé');
-  // Combats simultanés : un seul passe
+  assert.equal((await api('/api/battle/start', { method: 'POST', token: pTok, body: { fighterId: 'c-perso' } })).status, 400);
+  assert.equal((await api('/api/battle/start', { method: 'POST', token: pTok, body: { fighterId: '0002', opponentId: '0002' } })).status, 400);
+  assert.equal((await api('/api/battle/start', { method: 'POST', token: pTok, body: { fighterId: '0999' } })).status, 400);
+  const a = await api('/api/battle/start', { method: 'POST', token: pTok, body: { mode: 'solo', difficulty: 'normal', fighterId: '0010' } });
+  assert.equal(a.status, 200, JSON.stringify(a.data)); assert.notEqual(a.data.battle.foe.id, '0010');
+  const b = await api('/api/battle/start', { method: 'POST', token: pTok, body: { mode: 'solo', difficulty: 'normal', fighterId: '0010' } });
+  assert.equal(b.status, 409, 'combat déjà ouvert');
+  await api('/api/battle/finish', { method: 'POST', token: pTok, body: { id: a.data.id }, headers: { 'x-nb-test-now': String(a.data.battle.deadlineAt) } });
   await sleep(200);
-  const par = await Promise.all([1, 2, 3].map(() => api('/api/fight', { method: 'POST', token: pTok, body: { fighterId: '0011' } })));
+  const par = await Promise.all([1, 2, 3].map(() => api('/api/battle/start', { method: 'POST', token: pTok, body: { fighterId: '0011', opponentId: '0012' } })));
   assert.equal(par.filter(x => x.status === 200).length, 1);
   const p = await api('/api/me', { token: pTok });
-  assert.equal(p.data.profile.battles, 3);
+  assert.equal(p.data.profile.battles, 1);
+  const open = await api('/api/battle', { token: pTok });
+  if (open.data && open.data.battle && open.data.battle.status === 'active') {
+    await api('/api/battle/finish', { method: 'POST', token: pTok, body: { id: open.data.id }, headers: { 'x-nb-test-now': String(open.data.battle.deadlineAt) } });
+  }
 });
 
 test('notifications de victoire Telegram espacées (une seule par intervalle)', async () => {
   const before = mock.tg.filter(m => /Victoire( \(\w+\))? de/.test(m.body.text || '')).length;
   // 0004 (Légendaire) contre 0002 (Commun) : victoire quasi certaine → plusieurs victoires, une seule notification dans l'intervalle.
   let wins = 0;
-  for (let i = 0; i < 6; i++) { await sleep(170); const f = await api('/api/fight', { method: 'POST', token: pTok, body: { fighterId: '0004', opponentId: '0002' } }); if (f.data && f.data.result && f.data.result.winner === 'A') wins++; }
+  for (let i = 0; i < 4; i++) { await sleep(200); const f = await play(pTok, { fighterId: '0004', opponentId: '0002' }); if (f.data && f.data.result && f.data.result.winner === 'A' && !f.data.forfeit) wins++; }
   assert.ok(wins >= 2, 'au moins deux victoires : ' + wins);
   await sleep(100);
   const after = mock.tg.filter(m => /Victoire( \(\w+\))? de/.test(m.body.text || '')).length;
@@ -268,7 +307,7 @@ test('missions du jour et classement des joueurs', async () => {
   assert.equal(me.data.missions.length, 3);
   assert.ok(me.data.missions.some(m => m.progress > 0));
   const p2 = await login(player2);
-  await api('/api/fight', { method: 'POST', token: p2.token, body: { fighterId: '0001', opponentId: '0090' } });
+  await play(p2.token, { fighterId: '0001', opponentId: '0090' });
   await api('/api/me/name', { method: 'POST', token: p2.token, body: { name: '<b>Joueur 2</b>' } });
   const lb = await api('/api/leaderboard');
   assert.equal(lb.data.players.length, 2);
@@ -284,13 +323,13 @@ test('récompense obtenue (règle 3 000 points) puis réclamation et alerte admi
   await sleep(200);
   const i = mock.tg.length;
   let r;
-  for (let k = 0; k < 10; k++) { r = await api('/api/fight', { method: 'POST', token: pTok, body: { fighterId: '0002', opponentId: '0040' } }); if (r.data.newRewards?.length) break; await sleep(170); }
+  for (let k = 0; k < 6; k++) { r = await play(pTok, { fighterId: '0002', opponentId: '0040' }); if (r.data && r.data.newRewards && r.data.newRewards.length) break; await sleep(200); }
   assert.equal(r.data.newRewards[0].tier, 'Common');
   rewardId = r.data.newRewards[0].id;
   assert.equal(rewardId, 'points-3000:' + addr);
   // Obtenue une seule fois
   await sleep(170);
-  const again = await api('/api/fight', { method: 'POST', token: pTok, body: { fighterId: '0002', opponentId: '0040' } });
+  const again = await play(pTok, { fighterId: '0002', opponentId: '0040' });
   assert.equal(again.data.newRewards.length, 0);
   const c = await api(`/api/rewards/${encodeURIComponent(rewardId)}/claim`, { method: 'POST', token: pTok });
   assert.equal(c.status, 200); assert.equal(c.data.status, 'pending'); assert.equal(c.data.tokenId, 1);
@@ -443,7 +482,7 @@ test('stock épuisé signalé, plafond de points quotidien appliqué', async () 
   assert.ok(tgSince(i).some(m => /Stock épuisé/.test(m.body.text)));
   await db.prepare('UPDATE players SET day_points = 3000 WHERE address = ?').bind(player.address.toLowerCase()).run();
   await sleep(200);
-  const f = await api('/api/fight', { method: 'POST', token: pTok, body: { fighterId: '0002', opponentId: '0040' } });
+  const f = await play(pTok, { fighterId: '0002', opponentId: '0040' });
   const bonus = f.data.missionsCompleted.reduce((s, m) => s + m.points, 0);
   assert.equal(f.data.summary.points, bonus, 'aucun point de combat au-delà du plafond');
 });
@@ -497,11 +536,9 @@ test('FONDATEUR : badge, mêmes règles, classement normal, réclamation réelle
   assert.equal(before.data.profile.founder, true);
   assert.equal(before.data.profile.testMode, false);
   await sleep(200);
-  const f = await api('/api/fight', { method: 'POST', token: aTok, body: { fighterId: '0004', opponentId: '0005' } });
-  assert.equal(f.status, 200);
-  // Aucun bonus : le combat rejoué avec la même graine et les mêmes niveaux donne le même résultat, points calculés comme pour tous
-  const replay = E.simulateBattle(C.find(c => c.id === '0004'), f.data.result.fighters.A.level, C.find(c => c.id === '0005'), f.data.result.fighters.B.level, f.data.seed);
-  assert.deepEqual(replay, f.data.result);
+  const f = await play(aTok, { fighterId: '0004', opponentId: '0005' });
+  assert.equal(f.status, 200, JSON.stringify(f.data));
+  assert.equal(f.data.result.manual, true);
   const local = E.applyBattleResult({ profile: { points: 0, wins: before.data.profile.wins, losses: before.data.profile.losses, battles: 0, streak: before.data.profile.streak, bestStreak: before.data.profile.bestStreak }, chars: {} }, f.data.result);
   assert.equal(f.data.summary.battlePoints, local.summary.points, 'mêmes points que n\u2019importe quel joueur');
   const lb = await api('/api/leaderboard');
@@ -511,7 +548,7 @@ test('FONDATEUR : badge, mêmes règles, classement normal, réclamation réelle
   // Seuil atteint : aucune récompense réelle n'est créée pour le fondateur
   await db.prepare('UPDATE players SET points = 5000, day_points = 0 WHERE address = ?').bind(admin.address.toLowerCase()).run();
   await sleep(200);
-  const f2 = await api('/api/fight', { method: 'POST', token: aTok, body: { fighterId: '0004', opponentId: '0005' } });
+  const f2 = await play(aTok, { fighterId: '0004', opponentId: '0005' });
   assert.equal(f2.data.newRewards.length, 0);
   // Réclamation réelle refusée même si une récompense existait
   await db.prepare("INSERT INTO rewards (id, address, rule_id, tier, label, earned_at) VALUES ('forge:f', ?, 'x', 'Common', 'forgé', 1)").bind(admin.address.toLowerCase()).run();
@@ -532,7 +569,7 @@ test('MODE TEST : de bout en bout, [TEST] sur Telegram, simulation sans transact
   // En mode test, atteindre un seuil crée une récompense TEST
   await sleep(200);
   const i = mock.tg.length;
-  const f = await api('/api/fight', { method: 'POST', token: aTok, body: { fighterId: '0004', opponentId: '0005' } });
+  const f = await play(aTok, { fighterId: '0004', opponentId: '0005' });
   const tr = f.data.newRewards.find(r => r.test);
   assert.ok(tr && tr.id.startsWith('test:points-3000:'), JSON.stringify(f.data.newRewards));
   // Réclamation TEST : autorisée pour le fondateur, ne réserve aucun token réel
@@ -579,86 +616,113 @@ test('MODE TEST : de bout en bout, [TEST] sur Telegram, simulation sans transact
   assert.equal((await api('/api/me', { token: aTok })).data.profile.testMode, false);
 });
 
-test('MODES : solo (difficulté), boss (tentatives limitées), tournoi (1/jour), PvP (matchmaking, ELO, repli bot)', async () => {
+test('MODES : solo manuel, boss, défi 3 tentatives, tournoi et PvP en attente', async () => {
   const w1 = Wallet.createRandom(), w2 = Wallet.createRandom();
   const t1 = (await login(w1)).token, t2 = (await login(w2)).token;
   const ids = C.map(c => c.id);
-  // SOLO : le bot est choisi par le serveur, niveau et stats mis à l'échelle, points multipliés
-  const s = await api('/api/fight', { method: 'POST', token: t1, body: { mode: 'solo', difficulty: 'cauchemar', fighterId: ids[0], opponentId: ids[1] } });
+  const s = await play(t1, { mode: 'solo', difficulty: 'cauchemar', fighterId: ids[0], opponentId: ids[1] });
   assert.equal(s.status, 200, JSON.stringify(s.data));
-  assert.equal(s.data.difficulty, 'cauchemar'); assert.equal(s.data.result.fighters.B.level, E.botLevel('cauchemar', 1));
-  const replay = E.simulateBattle(C[0], 1, C.find(c => c.id === s.data.result.fighters.B.id), E.botLevel('cauchemar', 1), s.data.seed, { scaleB: E.DIFFICULTIES.cauchemar.scale });
-  assert.equal(replay.winner, s.data.result.winner, 'solo rejouable avec la graine');
-  assert.equal((await api('/api/fight', { method: 'POST', token: t1, body: { mode: 'solo', difficulty: 'dieu', fighterId: ids[0] } })).status, 400);
-  // BOSS : 3 tentatives max par jour
+  assert.equal(s.data.difficulty, 'cauchemar');
+  assert.equal(s.data.result.fighters.B.level, E.botLevel('cauchemar', 1));
+  assert.equal(s.data.result.manual, true);
+  assert.equal(s.data.attemptsUsed, 1);
+  assert.equal((await api('/api/challenge/new-run', { method: 'POST', token: t1 })).status, 409);
+  assert.equal((await api('/api/battle/start', { method: 'POST', token: t1, body: { mode: 'solo', difficulty: 'dieu', fighterId: ids[0] } })).status, 400);
+  await sleep(200);
+  assert.equal((await api('/api/battle/start', { method: 'POST', token: t1, body: { mode: 'solo', difficulty: 'normal', fighterId: ids[0] } })).status, 409);
   const info = await api('/api/boss', { token: t1 });
   assert.equal(info.data.attemptsLeft, 3); assert.ok(info.data.boss.phases >= 3);
   for (let i = 0; i < 3; i++) {
     await sleep(200);
-    const b = await api('/api/boss', { method: 'POST', token: t1, body: { fighterId: ids[2] } });
+    const b = await play(t1, { mode: 'boss', fighterId: ids[2] });
     assert.equal(b.status, 200, JSON.stringify(b.data));
-    assert.equal(b.data.attemptsLeft, 2 - i); assert.equal(b.data.summary.battlePoints, E.bossPoints(b.data.result));
-    assert.ok(b.data.result.events.some(e => e.type === 'phase') || b.data.result.winner === 'B');
+    assert.equal(b.data.attemptsLeft, 2 - i);
+    assert.equal(b.data.summary.battlePoints, E.bossPoints(b.data.result));
+    assert.equal(b.data.result.manual, true);
   }
   await sleep(200);
   assert.equal((await api('/api/boss', { method: 'POST', token: t1, body: { fighterId: ids[2] } })).status, 429, '4e tentative refusée');
-  // TOURNOI : 8 places, points selon le classement, une fois par jour
   await sleep(200);
-  const tr = await api('/api/tournament', { method: 'POST', token: t1, body: { fighterId: ids[3] } });
-  assert.equal(tr.status, 200, JSON.stringify(tr.data));
-  assert.equal(tr.data.bracket.entrants.length, 8); assert.equal(tr.data.tournamentPoints, E.TOURNAMENT_POINTS[tr.data.placement]);
-  assert.ok(tr.data.matches.length >= 1 && tr.data.matches.length <= 3);
-  await sleep(200);
-  assert.equal((await api('/api/tournament', { method: 'POST', token: t1, body: { fighterId: ids[3] } })).status, 429);
-  const res = await api('/api/tournament/results');
-  assert.ok(res.data.results.some(r => r.address === w1.address.toLowerCase() && r.placement === tr.data.placement));
-  // PvP : file d'attente, appariement, combat serveur, ELO, l'autre joueur récupère le résultat
-  await sleep(200);
-  const j1 = await api('/api/pvp/join', { method: 'POST', token: t1, body: { fighterId: ids[4] } });
-  assert.equal(j1.data.status, 'waiting');
-  assert.equal((await api('/api/pvp/status', { token: t1 })).data.status, 'waiting');
-  const j2 = await api('/api/pvp/join', { method: 'POST', token: t2, body: { fighterId: ids[5] } });
-  assert.equal(j2.data.status, 'matched', JSON.stringify(j2.data));
-  assert.equal(j2.data.result.fighters.A.id, ids[5]);
-  const st1 = await api('/api/pvp/status', { token: t1 });
-  assert.equal(st1.data.status, 'matched'); assert.equal(st1.data.matchId, j2.data.matchId);
-  assert.equal(st1.data.result.fighters.A.id, ids[4]);
-  assert.equal(st1.data.rating + j2.data.rating, 2000, 'ELO à somme nulle');
-  const elo = await api('/api/leaderboard?type=elo');
-  assert.equal(elo.data.type, 'elo'); assert.ok(elo.data.players.length >= 2);
-  // Personne en face : délai dépassé → proposition de BOT, puis combat solo (repli)
-  await sleep(200);
-  await api('/api/pvp/join', { method: 'POST', token: t1, body: { fighterId: ids[4] } });
-  await sleep(3300);
-  const to = await api('/api/pvp/status', { token: t1 });
-  assert.equal(to.data.status, 'timeout'); assert.equal(to.data.botOffer, true);
-  const fb = await api('/api/fight', { method: 'POST', token: t1, body: { mode: 'solo', difficulty: 'normal', fighterId: ids[4], pvpFallback: true } });
-  assert.equal(fb.status, 200);
-  assert.equal((await api('/api/pvp/status', { token: t1 })).data.status, 'idle');
-  const addr1 = w1.address.toLowerCase(), addr2 = w2.address.toLowerCase();
-  for (const addr of [addr1, addr2]) {
-    const me = addr === addr1 ? await api('/api/me', { token: t1 }) : await api('/api/me', { token: t2 });
-    const n = await db.prepare('SELECT COUNT(*) AS n FROM fights WHERE address = ?').bind(addr).first();
-    assert.equal(n.n, me.data.profile.battles, 'journal et compteur de combats pour ' + addr);
+  for (let i = 0; i < 2; i++) {
+    const extra = await play(t1, { mode: 'solo', difficulty: 'cauchemar', fighterId: ids[1] });
+    assert.equal(extra.status, 200, JSON.stringify(extra.data));
   }
-  const matchRows = await db.prepare('SELECT COUNT(*) AS n FROM pvp_matches WHERE id = ?').bind(j2.data.matchId).first();
-  assert.equal(matchRows.n, 1);
+  await sleep(200);
+  const blocked = await api('/api/battle/start', { method: 'POST', token: t1, body: { mode: 'solo', difficulty: 'cauchemar', fighterId: ids[1] } });
+  assert.equal(blocked.status, 429);
+  const duel = await play(t1, { fighterId: ids[3], opponentId: ids[4] });
+  assert.equal(duel.status, 200, JSON.stringify(duel.data));
+  const meBefore = await api('/api/me', { token: t1 });
+  const reset = await api('/api/challenge/new-run', { method: 'POST', token: t1 });
+  assert.equal(reset.status, 200, JSON.stringify(reset.data));
+  assert.equal(reset.data.attemptsUsed, 0);
+  assert.equal(reset.data.points, meBefore.data.profile.points);
+  const tr = await api('/api/tournament', { method: 'POST', token: t1, body: { fighterId: ids[3] } });
+  assert.equal(tr.status, 409);
+  assert.match(tr.data.error, /pas encore disponible/);
+  const j1 = await api('/api/pvp/join', { method: 'POST', token: t1, body: { fighterId: ids[4] } });
+  const j2 = await api('/api/pvp/join', { method: 'POST', token: t2, body: { fighterId: ids[5] } });
+  assert.equal(j1.data.status, 'pending');
+  assert.equal(j2.data.interactive, false);
+  assert.equal((await api('/api/pvp/status', { token: t1 })).data.status, 'pending');
+  const shop = await api('/api/shop');
+  assert.equal(shop.data.payments, 'off');
+  assert.equal(shop.data.products.find(p => p.id === 'personal-import').priceEur, 4.99);
+  assert.equal(shop.data.products.every(p => p.purchasable === false), true);
+  const offer = await api('/api/starter', { token: t2 });
+  assert.equal(offer.status, 200);
+  assert.equal(new Set(offer.data.offer).size, 3);
+  const again = await api('/api/starter', { token: t2 });
+  assert.deepEqual(again.data.offer, offer.data.offer);
+  const bad = await api('/api/starter', { method: 'POST', token: t2, body: { id: '0001' } });
+  if (!offer.data.offer.includes('0001')) assert.equal(bad.status, 400);
+  const pick = offer.data.offer[0];
+  const chose = await api('/api/starter', { method: 'POST', token: t2, body: { id: pick } });
+  assert.equal(chose.status, 200);
+  assert.equal(chose.data.chosen, pick);
+  const other = offer.data.offer.find(id => id !== pick);
+  assert.equal((await api('/api/starter', { method: 'POST', token: t2, body: { id: other } })).status, 409);
+  const same = await api('/api/starter', { method: 'POST', token: t2, body: { id: pick } });
+  assert.equal(same.status, 200);
 });
 
 test('intégrité : combats concurrents n’écartent pas le journal des statistiques', async () => {
   const w = Wallet.createRandom();
   const t = (await login(w)).token;
   const addr = w.address.toLowerCase();
-  const first = await api('/api/fight', { method: 'POST', token: t, body: { fighterId: '0004', opponentId: '0002' } });
+  const first = await play(t, { fighterId: '0004', opponentId: '0002' });
   assert.equal(first.status, 200, JSON.stringify(first.data));
   await sleep(200);
-  const par = await Promise.all([1, 2, 3, 4].map(() => api('/api/fight', { method: 'POST', token: t, body: { fighterId: '0004', opponentId: '0002' } })));
+  const par = await Promise.all([1, 2, 3, 4].map(() => play(t, { fighterId: '0004', opponentId: '0002' })));
   assert.equal(par.filter(x => x.status === 200).length, 1);
-  assert.ok(par.filter(x => x.status === 429).length >= 1);
+  assert.ok(par.filter(x => x.status === 409 || x.status === 429).length >= 1);
   const me = await api('/api/me', { token: t });
   const fights = await db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(points),0) AS p FROM fights WHERE address = ?').bind(addr).first();
   assert.equal(fights.n, me.data.profile.battles);
   assert.equal(fights.p, me.data.profile.points);
   const chars = await db.prepare('SELECT xp FROM char_progress WHERE address = ? AND char_id = ?').bind(addr, '0004').first();
   assert.ok(chars && chars.xp > 0);
+});
+
+test('import personnel en ligne : pas de prix, pas de classé, fondateur inchangé', async () => {
+  const anon = await api('/api/custom/import', { method: 'POST', body: { rarity: 'Légendaire', stats: { hp: 999 } } });
+  assert.equal(anon.status, 401);
+  const player = await api('/api/custom/import', { method: 'POST', token: pTok, body: { rarity: 'Légendaire', image: 'data:image/gif;base64,xx' } });
+  assert.equal(player.status, 403);
+  assert.match(player.data.error, /4,99 EUR/);
+  assert.match(player.data.error, /paiement désactivé/);
+  assert.equal(/paypal\.com|approve/i.test(player.data.error), false);
+  const founder = await api('/api/custom/import', { method: 'POST', token: aTok, body: { rarity: 'Mythique' } });
+  assert.equal(founder.status, 200);
+  assert.equal(founder.data.accepted, false);
+  assert.equal(founder.data.ranked, false);
+  assert.equal(founder.data.localOnly, true);
+  assert.equal(founder.data.pendingPayment, false);
+  const ranked = await api('/api/battle/start', { method: 'POST', token: pTok, body: { fighterId: 'c-payant', rarity: 'Légendaire' } });
+  assert.equal(ranked.status, 400);
+  assert.match(ranked.data.error, /refusée en classé/);
+  const boss = await api('/api/boss', { method: 'POST', token: aTok, body: { fighterId: 'c-fondateur' } });
+  assert.equal(boss.status, 400);
+  const players = await db.prepare('SELECT COUNT(*) AS n FROM players').first();
+  assert.ok(players.n >= 1);
 });

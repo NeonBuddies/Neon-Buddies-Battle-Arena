@@ -421,6 +421,219 @@
     return { state: st, completed: completed, bonusPoints: bonus };
   }
 
+  /* ---------- Combat manuel : le joueur déclenche attaque et sort ---------- */
+  var MANUAL = { MIN_MS: 150000, MAX_EXTRA_MS: 60000, ATTACK_CD: 4000, SPELL_CD: 14000, NPC_CD: 4500, HIT_FRAC: 0.02 };
+  var SPELL_BY_FAMILY = {
+    'Robot Couronne': { key: 'brise', title: 'Couronne', mult: 1.25, ignoreDef: 0.35, blurb: 'Ignore 35 % de la défense.' },
+    'Lapin Pastel': { key: 'siphon', title: 'Pastel', mult: 1.1, healOfDmg: 0.2, blurb: 'Dégâts ×1,10 et soin de 20 % des dégâts.' },
+    'Mage Encapuchonné': { key: 'eclat', title: 'Mage', mult: 1.4, blurb: 'Dégâts ×1,40.' },
+    'Panda Néon': { key: 'garde', title: 'Panda', mult: 0.9, shieldFrac: 0.04, blurb: 'Coup réduit et un bouclier absorbe une partie du prochain coup.' },
+    'Renard Ailé': { key: 'tempo', title: 'Renard', mult: 1.3, blurb: 'Dégâts ×1,30.' },
+    'Robot Glacé': { key: 'glace', title: 'Glace', mult: 1.1, slowMs: 1000, blurb: 'Dégâts ×1,10 et le prochain coup adverse est retardé.' },
+    'Petit Démon': { key: 'braise', title: 'Braise', mult: 1.15, burnFrac: 0.02, blurb: 'Dégâts ×1,15 plus une brûlure.' },
+    'Lapin Holo': { key: 'focal', title: 'Holo', mult: 1.05, critBonus: 25, blurb: 'Dégâts ×1,05 et +25 points de critique sur ce coup.' },
+    'Ange Doré': { key: 'onde', title: 'Ange', mult: 0.95, selfHealFrac: 0.04, blurb: 'Dégâts ×0,95 et un soin.' },
+    'Lapin Cyber': { key: 'cyber', title: 'Cyber', mult: 1.2, blurb: 'Dégâts ×1,20.' }
+  };
+  function characterSpell(ch) {
+    var id = String((ch && ch.id) || '');
+    var fam = (ch && ch.traits && ch.traits.famille) || '';
+    if (!/^\d{4}$/.test(id)) {
+      return { id: 'frappe-importee', name: 'Import', key: 'import', mult: 1.15, ignoreDef: 0, healOfDmg: 0, blurb: 'Frappe importée ×1,15. La rareté choisie ne compte pas en classé.' };
+    }
+    var s = SPELL_BY_FAMILY[fam] || { key: 'onde', title: 'Neon', mult: 1.1, blurb: 'Dégâts ×1,10.' };
+    return {
+      id: 'spell-' + id, name: s.title + ' #' + id, key: s.key, mult: s.mult,
+      ignoreDef: s.ignoreDef || 0, healOfDmg: s.healOfDmg || 0, shieldFrac: s.shieldFrac || 0,
+      slowMs: s.slowMs || 0, burnFrac: s.burnFrac || 0, critBonus: s.critBonus || 0,
+      selfHealFrac: s.selfHealFrac || 0, blurb: s.blurb
+    };
+  }
+  function nextRoll(a) {
+    a = (a + 0x6D2B79F5) >>> 0;
+    var t = Math.imul(a ^ (a >>> 15), a | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return { state: a, value: ((t ^ (t >>> 14)) >>> 0) / 4294967296 };
+  }
+  function bootFighter(f, readyAt) {
+    return {
+      id: f.id, name: f.name, rarity: f.rarity, level: f.level, stats: f.stats, side: f.side,
+      hp: f.hp, maxHp: f.maxHp, spell: f.spell, atkReadyAt: readyAt, spellReadyAt: readyAt,
+      shield: 0, slowMs: 0, actions: 0, actionTimes: []
+    };
+  }
+  function createManualBattle(chA, levelA, chB, levelB, seed, opts) {
+    opts = opts || {};
+    var now = opts.now || 0;
+    var minMs = opts.minMs == null ? MANUAL.MIN_MS : opts.minMs;
+    var maxMs = opts.maxMs == null ? minMs + MANUAL.MAX_EXTRA_MS : opts.maxMs;
+    var A = makeFighter(chA, levelA, 'A');
+    var B = makeFighter(chB, levelB, 'B');
+    A.spell = characterSpell(chA);
+    B.spell = opts.boss ? { id: 'boss-spell', name: opts.boss.special, key: 'boss', mult: 1.15, blurb: opts.boss.special, ignoreDef: 0, healOfDmg: 0 } : characterSpell(chB);
+    if (opts.scaleB && opts.scaleB !== 1) scaleFighter(B, opts.scaleB, opts.scaleB, opts.scaleB);
+    if (opts.boss) { scaleFighter(B, opts.boss.hpMult, opts.boss.atkMult, opts.boss.defMult); B.boss = true; }
+    return {
+      v: 1, seed: seed >>> 0, rng: seed >>> 0, startedAt: now, readyAt: now + minMs,
+      deadlineAt: now + Math.max(minMs, maxMs), minMs: minMs, status: 'active', seq: 0,
+      mode: opts.mode || 'duel', difficulty: opts.difficulty || null,
+      boss: opts.boss ? { id: opts.boss.id, phases: opts.boss.phases, phase: 0 } : null,
+      A: bootFighter(A, now), B: bootFighter(B, now + 1500),
+      events: [{ type: 'start', text: A.name + ' entre dans l’arène. À toi de frapper.' }],
+      playerActions: 0, damageToB: 0, winner: null, forfeit: false
+    };
+  }
+  function pushEvent(state, ev) {
+    state.events.push(ev);
+    if (state.events.length > 40) state.events = state.events.slice(-40);
+  }
+  function applyHit(state, att, def, kind, now) {
+    var spell = kind === 'spell' ? att.spell : null;
+    var roll = nextRoll(state.rng); state.rng = roll.state;
+    var variance = 0.9 + roll.value * 0.2;
+    roll = nextRoll(state.rng); state.rng = roll.state;
+    var critChance = att.stats.crit + (spell ? spell.critBonus || 0 : 0);
+    var crit = roll.value * 100 < critChance;
+    var defStat = Math.max(1, def.stats.def * (1 - (spell ? spell.ignoreDef || 0 : 0)));
+    var ratio = Math.max(0.7, Math.min(1.45, att.stats.atk / defStat));
+    var mult = spell ? spell.mult : 1;
+    var frac = MANUAL.HIT_FRAC * variance * ratio * mult * (crit ? 1.35 : 1);
+    var dmg = Math.max(1, Math.round(def.maxHp * frac));
+    if (spell && spell.burnFrac) dmg += Math.max(1, Math.round(def.maxHp * spell.burnFrac));
+    var absorbed = 0;
+    if (def.shield > 0) { absorbed = Math.min(def.shield, dmg - 1); if (absorbed < 0) absorbed = 0; def.shield -= absorbed; dmg -= absorbed; }
+    var floored = false;
+    if (now < state.readyAt && def.hp - dmg < 1) { def.hp = 1; floored = true; }
+    else def.hp = Math.max(0, def.hp - dmg);
+    if (def === state.B) state.damageToB += dmg;
+    var heal = 0;
+    if (spell) {
+      heal = Math.round(dmg * (spell.healOfDmg || 0) + att.maxHp * (spell.selfHealFrac || 0));
+      heal = Math.min(Math.round(att.maxHp * 0.12), Math.max(0, heal));
+      if (heal) att.hp = Math.min(att.maxHp, att.hp + heal);
+      if (spell.shieldFrac) att.shield = Math.min(Math.round(att.maxHp * 0.12), Math.round(att.maxHp * spell.shieldFrac));
+      if (spell.slowMs) def.slowMs = (def.slowMs || 0) + spell.slowMs;
+    }
+    var move = spell ? spell.name : 'Attaque';
+    var text = att.name + (spell ? ' lance ' + spell.name : ' attaque') + ' : ' + dmg + ' dégâts' + (crit ? ' (CRITIQUE !)' : '');
+    pushEvent(state, {
+      type: spell ? 'special' : 'attack', attacker: att.side, defender: def.side, damage: dmg, crit: crit,
+      heal: heal, absorbed: absorbed, floored: floored, hpAfter: def.hp, maxHp: def.maxHp, move: move,
+      spellId: spell ? spell.id : '', text: text
+    });
+    if (heal) pushEvent(state, { type: 'heal', side: att.side, heal: heal, text: att.name + ' récupère ' + heal + ' PV' });
+    if (absorbed) pushEvent(state, { type: 'shield', side: def.side, absorbed: absorbed, text: def.name + ' absorbe ' + absorbed + ' dégâts' });
+    if (def === state.B && def.hp > 1) applyBossPhase(state);
+    if (def.hp <= 0 && now >= state.readyAt) finishKo(state, att.side);
+  }
+  function applyBossPhase(state) {
+    if (!state.boss) return;
+    var phases = state.boss.phases || [];
+    while (state.boss.phase < phases.length && state.B.hp <= state.B.maxHp * phases[state.boss.phase].at && state.B.hp > 1) {
+      var ph = phases[state.boss.phase++];
+      if (ph.atk) state.B.stats.atk = Math.round(state.B.stats.atk * ph.atk);
+      if (ph.def) state.B.stats.def = Math.round(state.B.stats.def * ph.def);
+      if (ph.spd) state.B.stats.spd = Math.round(state.B.stats.spd * ph.spd);
+      if (ph.crit) state.B.stats.crit = Math.min(60, state.B.stats.crit + ph.crit);
+      var heal = Math.round(state.B.maxHp * (ph.heal || 0));
+      if (heal) state.B.hp = Math.min(state.B.maxHp, state.B.hp + heal);
+      pushEvent(state, { type: 'phase', side: 'B', phase: state.boss.phase + 1, hpAfter: state.B.hp, maxHp: state.B.maxHp, text: state.B.name + ' — ' + ph.text + (heal ? ' (+' + heal + ' PV)' : '') });
+    }
+  }
+  function finishKo(state, winner) {
+    if (state.status !== 'active') return;
+    state.status = 'finished';
+    state.winner = winner;
+    state.forfeit = !isEngaged(state);
+    var w = winner === 'A' ? state.A : state.B;
+    pushEvent(state, { type: 'end', winner: winner, text: state.forfeit ? 'Actions insuffisantes : pas de victoire ni de points.' : w.name + ' remporte le combat !' });
+  }
+  function isEngaged(state) {
+    if (state.playerActions < 1) return false;
+    if (state.minMs < 150000) return true;
+    var need = Math.ceil(state.minMs / 30000), seen = {};
+    state.A.actionTimes.forEach(function (t) {
+      var b = Math.floor((t - state.startedAt) / 30000);
+      if (b >= 0 && b < need) seen[b] = 1;
+    });
+    return Object.keys(seen).length >= need;
+  }
+  function catchUpNpc(state, now) {
+    var guard = 0;
+    while (state.status === 'active' && state.B.atkReadyAt <= now && guard++ < 80) {
+      var at = state.B.atkReadyAt;
+      var kind = state.B.spellReadyAt <= at ? 'spell' : 'attack';
+      var slow = state.B.slowMs || 0;
+      state.B.slowMs = 0;
+      applyHit(state, state.B, state.A, kind, at);
+      state.B.atkReadyAt = at + MANUAL.NPC_CD + slow;
+      if (kind === 'spell') state.B.spellReadyAt = at + MANUAL.SPELL_CD;
+    }
+  }
+  function manualAct(state, action, now, seq) {
+    var next = JSON.parse(JSON.stringify(state));
+    if (next.status !== 'active') return { ok: false, reason: 'finished', state: next };
+    catchUpNpc(next, now);
+    if (next.status !== 'active') return { ok: true, reason: 'resolved', state: next };
+    if (seq != null && seq !== next.seq + 1) return { ok: false, reason: 'seq', state: state };
+    if (action !== 'attack' && action !== 'spell') return { ok: false, reason: 'action', state: state };
+    var ready = action === 'spell' ? next.A.spellReadyAt : next.A.atkReadyAt;
+    if (now < ready) return { ok: false, reason: 'cooldown', readyAt: ready, state: next };
+    var slow = next.A.slowMs || 0; next.A.slowMs = 0;
+    next.A.actions++; next.playerActions++; next.A.actionTimes.push(now); next.seq++;
+    if (action === 'spell') next.A.spellReadyAt = now + MANUAL.SPELL_CD + slow;
+    else next.A.atkReadyAt = now + MANUAL.ATTACK_CD + slow;
+    applyHit(next, next.A, next.B, action, now);
+    return { ok: true, reason: 'ok', state: next };
+  }
+  function manualFinish(state, now) {
+    var next = JSON.parse(JSON.stringify(state));
+    catchUpNpc(next, now);
+    if (next.status === 'finished') return { ok: true, reason: 'done', state: next };
+    if (now < next.readyAt) return { ok: false, reason: 'early', state: next };
+    if (next.A.hp <= 0 || next.B.hp <= 0) return { ok: true, reason: 'done', state: next };
+    if (now < next.deadlineAt) return { ok: false, reason: 'continue', state: next };
+    if (!isEngaged(next)) {
+      next.status = 'forfeit'; next.forfeit = true; next.winner = 'B';
+      pushEvent(next, { type: 'end', winner: 'B', text: 'Aucune série d’actions : pas de victoire ni de points.' });
+      return { ok: true, reason: 'forfeit', state: next };
+    }
+    var ratioA = next.A.hp / next.A.maxHp, ratioB = next.B.hp / next.B.maxHp;
+    finishKo(next, ratioA >= ratioB ? 'A' : 'B');
+    next.forfeit = next.winner === 'A' && !isEngaged(next);
+    return { ok: true, reason: 'deadline', state: next };
+  }
+  function manualResult(state) {
+    var winner = state.winner || 'B';
+    var w = winner === 'A' ? state.A : state.B, l = winner === 'A' ? state.B : state.A;
+    return {
+      winner: winner, winnerId: w.id, loserId: l.id, turns: state.playerActions, events: state.events,
+      fighters: { A: snapFighter(state.A), B: snapFighter(state.B) },
+      damageToB: Math.min(state.B.maxHp, state.damageToB || (state.B.maxHp - state.B.hp)),
+      bossPhase: state.boss ? state.boss.phase + 1 : 0, manual: true,
+      playerActions: state.playerActions, forfeit: !!state.forfeit
+    };
+  }
+  function snapFighter(f) {
+    return { id: f.id, name: f.name, rarity: f.rarity, level: f.level, stats: f.stats, side: f.side, hp: f.hp, maxHp: f.maxHp, spell: f.spell ? f.spell.name : '' };
+  }
+  function manualTick(state, now) {
+    var next = JSON.parse(JSON.stringify(state));
+    catchUpNpc(next, now);
+    return next;
+  }
+  function manualView(state, now) {
+    return {
+      status: state.status, seq: state.seq, mode: state.mode, difficulty: state.difficulty,
+      startedAt: state.startedAt, readyAt: state.readyAt, deadlineAt: state.deadlineAt, now: now,
+      minMs: state.minMs, winner: state.winner, forfeit: !!state.forfeit, playerActions: state.playerActions,
+      engaged: isEngaged(state),
+      you: { id: state.A.id, name: state.A.name, hp: state.A.hp, maxHp: state.A.maxHp, shield: state.A.shield, atkReadyAt: state.A.atkReadyAt, spellReadyAt: state.A.spellReadyAt, spell: state.A.spell, actions: state.A.actions },
+      foe: { id: state.B.id, name: state.B.name, hp: state.B.hp, maxHp: state.B.maxHp, shield: state.B.shield, spell: state.B.spell ? state.B.spell.name : '', boss: !!(state.boss) },
+      events: state.events.slice(-12)
+    };
+  }
+
   var api = {
     RARITIES: RARITIES, RARITY_MULT: RARITY_MULT, MAX_LEVEL: MAX_LEVEL, MAX_TURNS: MAX_TURNS, SPECIALS: SPECIALS,
     hash: hash, rng: rng, baseStats: baseStats, xpForLevel: xpForLevel, levelFromXp: levelFromXp,
@@ -428,7 +641,9 @@
     applyBattleResult: applyBattleResult, leaderboard: leaderboard, defaultProfile: defaultProfile,
     MISSION_POOL: MISSION_POOL, dayKey: dayKey, dailyMissions: dailyMissions, updateMissions: updateMissions,
     flipResult: flipResult, DIFFICULTIES: DIFFICULTIES, botLevel: botLevel, BOSSES: BOSSES, BOSS_ATTEMPTS_PER_DAY: BOSS_ATTEMPTS_PER_DAY, dailyBoss: dailyBoss,
-    bossCharacter: bossCharacter, bossLevel: bossLevel, bossPoints: bossPoints, TOURNAMENT_POINTS: TOURNAMENT_POINTS, runTournament: runTournament, elo: elo
+    bossCharacter: bossCharacter, bossLevel: bossLevel, bossPoints: bossPoints, TOURNAMENT_POINTS: TOURNAMENT_POINTS, runTournament: runTournament, elo: elo,
+    MANUAL: MANUAL, characterSpell: characterSpell, createManualBattle: createManualBattle, manualAct: manualAct,
+    manualFinish: manualFinish, manualTick: manualTick, manualResult: manualResult, manualView: manualView, isEngaged: isEngaged
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.NBEngine = api;
