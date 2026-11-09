@@ -1,53 +1,49 @@
 # Tests — NEON BUDDIES — NFT BATTLE ARENA
 
-Revue du 9 novembre 2026. Seuls les contrôles **relancés pendant cette revue** sont marqués réussis. Rien ici n’est un audit.
+Revue du 9 novembre 2026, deuxième passage sur le même code. Seuls les contrôles **relancés** ci-dessous sont des résultats. Rien ici n’est un audit.
 
-Un ancien rapport contenait une ligne parasite « failing tests » et répétait le test des notifications de victoire. Le fichier `tests/e2e-web3-resultats.txt` a été retiré : il présentait une émulation Chromium comme si c’était un téléphone Android. Ces textes ne sont plus une preuve.
+Un ancien rapport contenait une ligne parasite « failing tests ». Le fichier `tests/e2e-web3-resultats.txt` a été retiré : il présentait une émulation Chromium comme un téléphone Android.
 
-Le scénario navigateur complet (anciennement 39 assertions, wallets et RPC d’admin simulés) **n’a pas été rejoué** ici.
-
-## Réussis ici
+## Commandes et résultats
 
 ### Moteur — `npm test` — 20/20
 
 Collection, stats, XP, combat déterministe, équilibrage, sauvegarde, missions, solo, boss, tournoi, ELO. Aucun réseau.
 
-### Worker + D1 local — `cd worker && npm test` — 18/18
+### Worker + D1 local — `cd worker && npm test` — 20/20
 
-`wrangler dev --local`. RPC et Telegram **simulés**. `REAL_CLAIMS=1` seulement dans ce harness, pour exercer le parcours manuel. Le fichier `wrangler.toml` du dépôt reste à `"0"` (assertion du test de santé).
+`wrangler dev --local`. RPC et Telegram **simulés**. `REAL_CLAIMS=1` seulement dans ce harness. `worker/wrangler.toml` reste à `"0"`.
 
-Inclus : CORS, nonce (rejeu, expiration, mauvais signataire), admin par signature, combat calculé par le serveur, anti-triche, missions, classement, réclamation et double réclamation, stock, plafond de points, vérification de reçu **simulée**, webhook Telegram (secret, commandes, bouton d’un autre utilisateur dans le chat admin refusé), fondateur, mode test sans transaction, solo / boss / tournoi / PvP par sondage.
+Inclus : CORS, nonce (rejeu, expiration, mauvais signataire), admin par signature, combat serveur, anti-triche, missions, classement, réclamation, double réclamation, plafond de points, reçu **simulé**, webhook Telegram (secret, commandes, bouton d’un autre utilisateur **dans le chat admin** refusé), fondateur sans bonus, mode test sans transaction, solo / boss / tournoi / PvP par sondage.
 
-Nouveau : ERC-1271. La valeur magique `0x1626ba7e` n’est acceptée que si le mot ABI est propre. Un compte avec le préfixe EIP-7702 `0xef0100` n’est accepté que si l’appel simulé renvoie cette magie. Une signature d’un autre wallet pour l’adresse admin est refusée. Aucun `eth_sendTransaction` dans le mock RPC.
+ERC-1271 : seule la magie ABI `0x1626ba7e` propre est acceptée. Un préfixe EIP-7702 `0xef0100` ne connecte que si l’appel simulé renvoie cette magie. Aucun `eth_sendTransaction` dans le mock RPC.
 
-### i18n — `node scripts/check-i18n.mjs` — réussi
+Atomicité, ajoutée et rejouée :
 
-Contrôle statique de `index.html` et `regles.html`, puis parcours **Chromium** bureau et mobile en anglais. Ce n’est pas un appareil Android.
+- Deux réclamations simultanées du dernier jeton Commun : une seule réservation, l’autre reste `earned`, aucun `token_id` en double.
+- Combats concurrents : `battles` égale le nombre de lignes `fights`, et la somme des points du journal égale les points du joueur. Le PvP écrit les deux joueurs, l’ELO et la ligne de match dans la même transaction.
 
-### Navigateur local, jeu hors ligne — réussi
+### Navigateur — `CHROME=/usr/local/bin/google-chrome node worker/test/e2e-browser.mjs` — 40/40
 
-Chrome réel sur `http://127.0.0.1:8765`, configuration du dépôt (URL de Worker visée, non déployée).
+Site déjà servi sur `http://127.0.0.1:8765`. Worker local. Wallets EIP-1193 **injectés**. L’envoi admin est intercepté et **n’est pas diffusé**. Lecture RPC Robinhood réelle uniquement pour le panneau on-chain (chaîne 4663, nom du contrat, `ownerOf` 1 / 7 / 50 / 100, `tokenURI`).
 
-- Bandeau : « Serveur de récompenses hors ligne : jeu en mode local uniquement. Aucune réclamation NFT réelle, aucun combat classé envoyé. »
-- Onglet récompenses : serveur injoignable, aucune réclamation NFT.
-- Combat rapide local : victoire en duel, points passés à 194, mission du jour. Aucune requête `eth_sendTransaction` / `eth_sendRawTransaction`.
+Les libellés « Android » de l’ancien rapport sont renommés : c’est une **émulation de viewport Chromium**, pas un téléphone et pas l’application MetaMask.
 
-### Lecture seule Robinhood Chain — réussie (pas une transaction)
+Les 40 assertions couvrent le lien MetaMask, le RPC réel, le débordement du viewport, la signature, le combat classé, la réclamation, le refus de double réclamation, le classement, les missions, le 403 admin, la transaction `safeTransferFrom` non diffusée, l’absence de `setApprovalForAll`, solo / boss / tournoi / PvP (appariement, ELO, repli bot), le FR/EN, et la simulation de test sans transaction.
 
-`eth_chainId` = 4663.  
-`eth_getCode(0xCABB…1635)` = `0xef0100` + `77021100bd87b7008e5e1989d0eb38555d0d0000` (délégation EIP-7702 vers SemiModularAccount7702 v1.1.0).  
-`ownerOf` des jetons 1, 7, 50 et 100 = `0xcabb7fe1c84aac98e8905ab0809129e4f5031635`.
+### i18n — `CHROME=/usr/local/bin/google-chrome node scripts/check-i18n.mjs` — réussi
+
+Statique (`index.html`, `regles.html`) puis parcours Chromium bureau et mobile en anglais. Pas un appareil Android.
 
 ### Bench signature — machine locale, pas le compteur CPU Cloudflare
 
-30 récupérations ECDSA après échauffement, même bibliothèque que le Worker : médiane 1,43 ms, p95 2,36 ms, max 2,95 ms.  
-`crypto.subtle` ECDSA : P-256 oui, **secp256k1 non**, K-256 non. La vérification Ethereum reste en JavaScript. La limite gratuite de 10 ms de CPU n’a pas été mesurée dans un isolate Workers de production.
+30 récupérations ECDSA après échauffement : médiane 1,43 ms, p95 2,36 ms, max 2,95 ms.  
+`crypto.subtle` ECDSA : P-256 oui, **secp256k1 non**. La limite gratuite de 10 ms de CPU n’a pas été mesurée dans un isolate de production.
 
-## Échecs ou non faits — ne pas les compter comme des succès
+## Non fait — ne pas le compter comme un succès
 
-- **Auth smoke** vers `https://neon-buddies-arena-api.neon-buddies-crypto-factory.workers.dev` : HTTP **404**, corps non JSON, code de sortie 2. Le backend n’est pas en ligne. EOA temporaire, **aucune transaction**.
-- Worker, D1 distant, webhook Telegram réel : non déployés, non vérifiés.
+- Auth smoke vers `https://neon-buddies-arena-api.neon-buddies-crypto-factory.workers.dev` : HTTP **404** lors du passage précédent. Pas relancé comme succès. Aucune transaction.
+- Worker distant, D1 distant, webhook Telegram réel : non déployés ici.
 - Application MetaMask sur un **vrai** Android : non testée.
-- `safeTransferFrom` réel : non envoyé. Le bouton d’envoi admin n’a pas été actionné.
-- Scénario e2e 39 assertions (wallets injectés) : non rejoué dans cette revue.
-- GitHub Pages : le workflow est dans le dépôt ; le site public n’est pas encore servi par cette revue.
+- `safeTransferFrom` réel : non envoyé.
+- Pages : la configuration GitHub est lue, le site de production n’est pas publié tant que `main` n’a pas ce workflow.

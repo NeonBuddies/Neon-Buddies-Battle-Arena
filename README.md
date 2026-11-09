@@ -9,7 +9,7 @@ Bilingue **FR / EN**. Thème noir / violet. Ordinateur et téléphones. Les fonc
 Ce dépôt **n’est pas audité** et **n’est pas déclaré prêt pour la production**.
 
 - Le Worker prévu n’est **pas déployé** depuis cette revue. L’URL visée est `https://neon-buddies-arena-api.neon-buddies-crypto-factory.workers.dev`. Un appel réel a répondu **HTTP 404**. Tant que `/api/health` ne renvoie pas `ok: true`, le jeu reste **explicitement hors ligne** : points dans le navigateur, **aucune réclamation NFT**, aucun combat classé envoyé.
-- `REAL_CLAIMS` vaut `"0"` dans `worker/wrangler.toml`. Même une fois le serveur joignable, **aucune réclamation réelle n’est préparée** tant que cette variable n’est pas passée à `"1"` hors de ce dépôt. Le mode test ne déplace aucun NFT.
+- `REAL_CLAIMS` vaut `"0"` dans `worker/wrangler.toml`. Même une fois le serveur joignable, **aucune réclamation réelle n’est préparée** tant que cette variable n’est pas passée à `"1"` hors de ce dépôt. Le mode test ne déplace aucun NFT. Le fondateur n’a aucun bonus de jeu ; ses réclamations réelles restent refusées parce qu’il détient déjà le stock.
 - **Aucune transaction blockchain n’est envoyée par le Worker ni par les scripts de ce dépôt.** Un transfert réel, s’il est un jour réactivé, ne part que si l’administrateur le signe lui-même dans son wallet (`safeTransferFrom`, valeur 0, contrat NB2 uniquement).
 - Le contrat NFT `0x3aFaFa532c6Ea72ad5533A5aeEb409276ACC0aFc` (chaîne 4663) **n’est pas modifié**. Aucune approbation OpenSea n’est demandée.
 - Aucune clé privée, aucun jeton Telegram et aucun fichier `.dev.vars` ne sont dans le dépôt.
@@ -54,17 +54,16 @@ tests/                      moteur
 
 ## Site (GitHub Pages)
 
-Le workflow `.github/workflows/pages.yml` publie **seulement** `index.html`, `regles.html`, `.nojekyll`, `css/`, `js/` et `assets/`. Il exclut `worker/`, les tests et la configuration. Déclenchement : push sur `main`, ou `workflow_dispatch`. Droits : lecture du dépôt, écriture Pages, jeton OIDC. Aucun plan payant.
+Le workflow `.github/workflows/pages.yml` publie **seulement** `index.html`, `regles.html`, `.nojekyll`, `css/`, `js/` et `assets/`. Il exclut `worker/`, les tests et la configuration. Déclenchement : push sur `main`, ou `workflow_dispatch`. Droits : lecture du dépôt, écriture Pages, jeton OIDC. Aucun plan payant. `.github/workflows/ci.yml` lance `npm test` et les tests Worker sur les pull requests ; il ne publie rien.
 
-URL prévue après activation de Pages et fusion sur `main` :  
-`https://neonbuddies.github.io/Neon-Buddies-Battle-Arena/`
+Lecture seule de la configuration Pages (aucun nouvel appel de création) : `build_type` = `workflow`, HTTPS imposé, URL prévue `https://neonbuddies.github.io/Neon-Buddies-Battle-Arena/`. Le site n’est pas encore servi depuis `main` tant que cette branche n’est pas fusionnée.
 
 Archive GitHub de `main` **après** la fusion :  
 `https://github.com/NeonBuddies/Neon-Buddies-Battle-Arena/archive/refs/heads/main.zip`
 
 ## Worker (déploiement séparé, pas fait ici)
 
-Compte Cloudflare `c57c5f5ed45cf8fe3f49145444723951`, base D1 `neon-buddies-arena` `c6957ed9-093a-4f0e-8bcc-abe5f7c3e7c4`. Le schéma de `worker/schema.sql` est déjà appliqué à cette base. `worker/migrations/0001_no_change.sql` ne change rien.
+Compte Cloudflare `c57c5f5ed45cf8fe3f49145444723951`, base D1 `neon-buddies-arena` `c6957ed9-093a-4f0e-8bcc-abe5f7c3e7c4`. Le schéma de `worker/schema.sql` est déjà appliqué à cette base. `worker/migrations/0001_no_change.sql` ne change rien : la réservation de jeton et l’écriture des combats tiennent dans des requêtes sur les tables existantes.
 
 Secrets à poser **hors git** (`npx wrangler secret put`), sans les écrire dans un fichier suivi :
 
@@ -81,6 +80,7 @@ python3 -m http.server 8765
 npm test
 cd worker && npm test
 CHROME=/usr/bin/google-chrome node scripts/check-i18n.mjs
+CHROME=/usr/bin/google-chrome node worker/test/e2e-browser.mjs
 ```
 
 Le rapport à jour est `TESTS.md`.

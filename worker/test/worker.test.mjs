@@ -319,8 +319,30 @@ test('double réclamation refusée (séquentielle et simultanée) + alerte', asy
   const row = await db.prepare('SELECT status, token_id FROM rewards WHERE id = ?').bind(rewardId2).first();
   assert.equal(row.status, 'pending'); assert.equal(row.token_id, 12);
   // Aucun token réservé deux fois
-  const t = await db.prepare("SELECT token_id, COUNT(*) n FROM rewards WHERE status IN ('pending','approved','sent') GROUP BY token_id HAVING n > 1").all();
+  const t = await db.prepare("SELECT token_id, COUNT(*) n FROM rewards WHERE status IN ('pending','approved','sent') AND is_test = 0 GROUP BY token_id HAVING n > 1").all();
   assert.equal(t.results.length, 0);
+});
+
+test('stock : deux réclamations simultanées du dernier jeton n’en réservent qu’un', async () => {
+  const w1 = Wallet.createRandom(), w2 = Wallet.createRandom();
+  const t1 = (await login(w1)).token, t2 = (await login(w2)).token;
+  const g1 = await api('/api/admin/grant', { method: 'POST', token: aTok, body: { address: w1.address, tier: 'Common', label: 'course A' } });
+  const g2 = await api('/api/admin/grant', { method: 'POST', token: aTok, body: { address: w2.address, tier: 'Common', label: 'course B' } });
+  const par = await Promise.all([
+    api(`/api/rewards/${encodeURIComponent(g1.data.id)}/claim`, { method: 'POST', token: t1 }),
+    api(`/api/rewards/${encodeURIComponent(g2.data.id)}/claim`, { method: 'POST', token: t2 })
+  ]);
+  const ok = par.filter(x => x.status === 200), denied = par.filter(x => x.status === 409);
+  assert.equal(ok.length, 1, JSON.stringify(par.map(x => x.status + ' ' + JSON.stringify(x.data))));
+  assert.equal(denied.length, 1);
+  assert.equal(ok[0].data.tokenId, 3);
+  const rows = await db.prepare('SELECT id, status, token_id FROM rewards WHERE id IN (?, ?)').bind(g1.data.id, g2.data.id).all();
+  assert.equal(rows.results.filter(r => r.status === 'pending' && r.token_id === 3).length, 1);
+  assert.equal(rows.results.filter(r => r.status === 'earned' && r.token_id == null).length, 1);
+  const dup = await db.prepare("SELECT token_id, COUNT(*) n FROM rewards WHERE status IN ('pending','approved','sent') AND is_test = 0 GROUP BY token_id HAVING n > 1").all();
+  assert.equal(dup.results.length, 0);
+  const pending = rows.results.find(r => r.status === 'pending');
+  assert.equal((await api(`/api/admin/rewards/${encodeURIComponent(pending.id)}/reject`, { method: 'POST', token: aTok, body: { note: 'course' } })).status, 200);
 });
 
 test('validation admin : ownerOf vérifié, transaction safeTransferFrom préparée, hash vérifié on-chain (simulé)', async () => {
@@ -613,4 +635,30 @@ test('MODES : solo (difficulté), boss (tentatives limitées), tournoi (1/jour),
   const fb = await api('/api/fight', { method: 'POST', token: t1, body: { mode: 'solo', difficulty: 'normal', fighterId: ids[4], pvpFallback: true } });
   assert.equal(fb.status, 200);
   assert.equal((await api('/api/pvp/status', { token: t1 })).data.status, 'idle');
+  const addr1 = w1.address.toLowerCase(), addr2 = w2.address.toLowerCase();
+  for (const addr of [addr1, addr2]) {
+    const me = addr === addr1 ? await api('/api/me', { token: t1 }) : await api('/api/me', { token: t2 });
+    const n = await db.prepare('SELECT COUNT(*) AS n FROM fights WHERE address = ?').bind(addr).first();
+    assert.equal(n.n, me.data.profile.battles, 'journal et compteur de combats pour ' + addr);
+  }
+  const matchRows = await db.prepare('SELECT COUNT(*) AS n FROM pvp_matches WHERE id = ?').bind(j2.data.matchId).first();
+  assert.equal(matchRows.n, 1);
+});
+
+test('intégrité : combats concurrents n’écartent pas le journal des statistiques', async () => {
+  const w = Wallet.createRandom();
+  const t = (await login(w)).token;
+  const addr = w.address.toLowerCase();
+  const first = await api('/api/fight', { method: 'POST', token: t, body: { fighterId: '0004', opponentId: '0002' } });
+  assert.equal(first.status, 200, JSON.stringify(first.data));
+  await sleep(200);
+  const par = await Promise.all([1, 2, 3, 4].map(() => api('/api/fight', { method: 'POST', token: t, body: { fighterId: '0004', opponentId: '0002' } })));
+  assert.equal(par.filter(x => x.status === 200).length, 1);
+  assert.ok(par.filter(x => x.status === 429).length >= 1);
+  const me = await api('/api/me', { token: t });
+  const fights = await db.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(points),0) AS p FROM fights WHERE address = ?').bind(addr).first();
+  assert.equal(fights.n, me.data.profile.battles);
+  assert.equal(fights.p, me.data.profile.points);
+  const chars = await db.prepare('SELECT xp FROM char_progress WHERE address = ? AND char_id = ?').bind(addr, '0004').first();
+  assert.ok(chars && chars.xp > 0);
 });

@@ -226,6 +226,56 @@ async function loadChars(env, address, ids) {
 const lvOf = (chars, id) => E.levelFromXp((chars[id] || {}).xp || 0).level;
 
 /**
+ * Stats, missions, XP et journal dans une seule transaction D1.
+ * Si le nombre de combats a changé depuis la lecture, l'INSERT sur la clé primaire échoue
+ * et toute la transaction (stats comprises) est annulée. Pas de journal sans stats, ni l'inverse.
+ */
+function progressStatements(env, b) {
+  return [
+    env.DB.prepare(`UPDATE players SET points = points + ?1, wins = wins + ?2, losses = losses + ?3, battles = battles + ?4,
+      streak = ?5, best_streak = MAX(best_streak, ?6), legend_wins = legend_wins + ?7, day = ?8,
+      day_points = CASE WHEN day = ?8 THEN day_points + ?9 ELSE ?9 END,
+      day_fights = CASE WHEN day = ?8 THEN day_fights + ?10 ELSE ?10 END,
+      last_fighter = ?11, last_level = ?12
+      WHERE address = ?13 AND battles = ?14`)
+      .bind(b.gained, b.np.wins - (b.p.wins || 0), b.np.losses - (b.p.losses || 0), b.dBattles, b.np.streak, b.np.bestStreak, b.legendWins, b.day, b.gained, b.matches.length, b.last.id, b.last.level, b.address, b.p.battles || 0)
+  ];
+}
+
+function progressGuard(env, checks) {
+  const where = checks.map((_, i) => `(address = ?${i * 2 + 1} AND battles != ?${i * 2 + 2})`).join(' OR ');
+  return env.DB.prepare(
+    `INSERT INTO players (address, created_at) SELECT address, created_at FROM players WHERE ${where}`
+  ).bind(...checks.flatMap(c => [c.address, c.expectedBattles]));
+}
+
+async function commitProgress(env, books, extra) {
+  const stmts = [];
+  for (const b of books) stmts.push(...b.stmts);
+  stmts.push(progressGuard(env, books.map(b => ({ address: b.address, expectedBattles: b.expectedBattles }))));
+  for (const b of books) {
+    stmts.push(env.DB.prepare('INSERT INTO missions (address, day, state) VALUES (?1, ?2, ?3) ON CONFLICT(address, day) DO UPDATE SET state = excluded.state').bind(b.address, b.day, JSON.stringify(b.mState)));
+    for (const id of new Set(b.ids || [])) {
+      const cp = b.chars && b.chars[id];
+      if (!cp) continue;
+      stmts.push(env.DB.prepare('INSERT INTO char_progress (address, char_id, xp, wins, losses) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(address, char_id) DO UPDATE SET xp = excluded.xp, wins = excluded.wins, losses = excluded.losses')
+        .bind(b.address, id, cp.xp, cp.wins, cp.losses));
+    }
+    b.matches.forEach((m, i) => stmts.push(env.DB.prepare('INSERT INTO fights (address, a, b, seed, winner, points, created_at, mode) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
+      .bind(b.address, m.result.fighters.A.id, m.result.fighters.B.id, m.seed >>> 0, m.result.winner, i === b.matches.length - 1 ? b.gained : 0, b.now, b.opts.mode || 'duel')));
+  }
+  if (extra) stmts.push(...extra);
+  try {
+    await env.DB.batch(stmts);
+  } catch (e) {
+    if (/UNIQUE constraint failed: players\.address/i.test(String(e && (e.message || e.cause && e.cause.message) || e))) {
+      throw new HttpError(409, 'Conflit de progression, réessaie.');
+    }
+    throw e;
+  }
+}
+
+/**
  * Enregistre un ou plusieurs combats d'un joueur (A = le joueur) : victoires/défaites, XP, missions, points.
  * opts.mode : duel | solo | boss | tournoi | pvp ; opts.mult : multiplicateur de points ; opts.points : total imposé (boss / tournoi).
  */
@@ -250,36 +300,31 @@ async function recordMatches(env, ctx, address, p, matches, opts) {
   const gained = capped + bonus;
   const np = prog.profile;
   const last = matches[matches.length - 1].result.fighters.A;
-  // Incréments conditionnés sur le nombre de combats lu : deux écritures simultanées ne s'écrasent pas.
-  const upd = await env.DB.prepare(`UPDATE players SET points = points + ?1, wins = wins + ?2, losses = losses + ?3, battles = battles + ?4,
-      streak = ?5, best_streak = MAX(best_streak, ?6), legend_wins = legend_wins + ?7, day = ?8,
-      day_points = CASE WHEN day = ?8 THEN day_points + ?9 ELSE ?9 END,
-      day_fights = CASE WHEN day = ?8 THEN day_fights + ?10 ELSE ?10 END,
-      last_fighter = ?11, last_level = ?12
-      WHERE address = ?13 AND battles = ?14`)
-    .bind(gained, np.wins - (p.wins || 0), np.losses - (p.losses || 0), np.battles - (p.battles || 0), np.streak, np.bestStreak, legendWins, day, gained, matches.length, last.id, last.level, address, p.battles || 0).run();
-  if (!upd.meta.changes) throw new HttpError(409, 'Conflit de progression, réessaie.');
-  const stmts = [
-    env.DB.prepare('INSERT INTO missions (address, day, state) VALUES (?1, ?2, ?3) ON CONFLICT(address, day) DO UPDATE SET state = excluded.state').bind(address, day, JSON.stringify(mState))
-  ];
-  for (const id of new Set(ids)) {
-    const cp = prog.chars[id]; if (!cp) continue;
-    stmts.push(env.DB.prepare('INSERT INTO char_progress (address, char_id, xp, wins, losses) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT(address, char_id) DO UPDATE SET xp = excluded.xp, wins = excluded.wins, losses = excluded.losses')
-      .bind(address, id, cp.xp, cp.wins, cp.losses));
-  }
-  matches.forEach((m, i) => stmts.push(env.DB.prepare('INSERT INTO fights (address, a, b, seed, winner, points, created_at, mode) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
-    .bind(address, m.result.fighters.A.id, m.result.fighters.B.id, m.seed >>> 0, m.result.winner, i === matches.length - 1 ? gained : 0, now, opts.mode || 'duel')));
-  await env.DB.batch(stmts);
-  const after = await getPlayer(env, address);
-  const won = matches[matches.length - 1].result.winner === 'A';
+  const dBattles = np.battles - (p.battles || 0);
+  const book = {
+    address, gained, summary, completed, mState, day, last, matches, opts, np, ids, now,
+    chars: prog.chars, battlePts, capped,
+    expectedBattles: (p.battles || 0) + dBattles,
+    stmts: progressStatements(env, {
+      address, p, np, gained, legendWins, day, now, last, matches, dBattles
+    })
+  };
+  if (opts.defer) return book;
+  await commitProgress(env, [book]);
+  return settleProgress(env, ctx, book);
+}
+
+async function settleProgress(env, ctx, book) {
+  const after = await getPlayer(env, book.address);
+  const won = book.matches[book.matches.length - 1].result.winner === 'A';
   if (won && env.TELEGRAM_NOTIFY_VICTORIES === '1') {
-    await notify(env, ctx, 'victory', `⚔️ Victoire${opts.mode && opts.mode !== 'duel' ? ' (' + opts.mode + ')' : ''} de ${after.name ? after.name + ' (' + short(after.address) + ')' : short(after.address)} : ${last.name} bat ${matches[matches.length - 1].result.fighters.B.name} (+${gained} pts, série ${after.streak}).`,
+    await notify(env, ctx, 'victory', `⚔️ Victoire${book.opts.mode && book.opts.mode !== 'duel' ? ' (' + book.opts.mode + ')' : ''} de ${after.name ? after.name + ' (' + short(after.address) + ')' : short(after.address)} : ${book.last.name} bat ${book.matches[book.matches.length - 1].result.fighters.B.name} (+${book.gained} pts, série ${after.streak}).`,
       { badge: false, throttle: ['victory', num(env.VICTORY_NOTIFY_INTERVAL_SEC, 600)] });
   }
   const newRewards = await grantEligible(env, ctx, after);
   return {
-    summary: Object.assign({}, summary, { points: gained, battlePoints: battlePts, capped: capped < battlePts }),
-    missionsCompleted: completed, missions: missionView(mState, day), profile: publicProfile(after, env), newRewards
+    summary: Object.assign({}, book.summary, { points: book.gained, battlePoints: book.battlePts, capped: book.capped < book.battlePts }),
+    missionsCompleted: book.completed, missions: missionView(book.mState, book.day), profile: publicProfile(after, env), newRewards
   };
 }
 
@@ -394,15 +439,17 @@ async function tryPair(env, ctx, sess, fighterId) {
   const p1 = await getPlayer(env, cand.address), p2 = await getPlayer(env, sess.address);
   result.fighters.A.owner = p1.name || short(p1.address); result.fighters.B.owner = p2.name || short(p2.address);
   const e = E.elo(p1.rating, p2.rating, result.winner === 'A' ? 1 : 0);
-  await recordMatches(env, ctx, cand.address, p1, [{ result, seed, persistOpp: false }], { mode: 'pvp' });
-  const mine = await recordMatches(env, ctx, sess.address, p2, [{ result: E.flipResult(result), seed, persistOpp: false }], { mode: 'pvp' });
-  await env.DB.batch([
+  const book1 = await recordMatches(env, ctx, cand.address, p1, [{ result, seed, persistOpp: false }], { mode: 'pvp', defer: true });
+  const book2 = await recordMatches(env, ctx, sess.address, p2, [{ result: E.flipResult(result), seed, persistOpp: false }], { mode: 'pvp', defer: true });
+  await commitProgress(env, [book1, book2], [
     env.DB.prepare('UPDATE players SET rating = ?1, pvp_wins = pvp_wins + ?2, pvp_losses = pvp_losses + ?3 WHERE address = ?4').bind(e.a, result.winner === 'A' ? 1 : 0, result.winner === 'A' ? 0 : 1, cand.address),
     env.DB.prepare('UPDATE players SET rating = ?1, pvp_wins = pvp_wins + ?2, pvp_losses = pvp_losses + ?3 WHERE address = ?4').bind(e.b, result.winner === 'B' ? 1 : 0, result.winner === 'B' ? 0 : 1, sess.address),
     env.DB.prepare('INSERT INTO pvp_matches (id, p1, p2, f1, f2, seed, winner, result, elo_delta, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)')
       .bind(id, cand.address, sess.address, f1.id, f2.id, seed, result.winner === 'A' ? cand.address : sess.address, JSON.stringify(result), e.delta, now),
     env.DB.prepare('DELETE FROM pvp_queue WHERE address = ?1').bind(sess.address)
   ]);
+  await settleProgress(env, ctx, book1);
+  const mine = await settleProgress(env, ctx, book2);
   return Object.assign({ status: 'matched', matchId: id, seed, result: E.flipResult(result), opponent: result.fighters.A.owner, ratingDelta: -e.delta, rating: e.b, mode: 'pvp' }, mine);
   } catch (e) {
     await env.DB.prepare('UPDATE pvp_queue SET match_id = NULL WHERE match_id = ?1').bind(id).run();
@@ -464,33 +511,76 @@ async function claim(env, ctx, sess, rewardId) {
     throw new HttpError(409, 'Cette récompense a déjà été réclamée.');
   }
   const stock = rewardStock(env)[r.tier] || [];
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const used = await env.DB.prepare("SELECT token_id FROM rewards WHERE status IN ('pending','approved','sent') AND token_id IS NOT NULL AND is_test = 0").all();
-    const taken = new Set(used.results.map(x => x.token_id));
-    const free = stock.filter(t => !taken.has(t));
-    // Mode test : un token est désigné pour la simulation mais n'est jamais réservé (le stock réel reste intact).
-    if (!free.length && !r.is_test) {
-      await notify(env, ctx, 'stock', `🚫 Stock épuisé au niveau ${TIER_FR[r.tier]} : ${short(sess.address)} n’a pas pu réclamer « ${r.label} ».`, { throttle: ['empty:' + r.tier, 3600] });
-      throw new HttpError(409, 'Stock épuisé pour ce niveau de récompense. L\u2019administrateur a été prévenu.');
+  // Mode test : un numéro est affiché, jamais réservé (l'index unique ignore is_test = 1).
+  if (r.is_test) {
+    const tokenId = stock[0] || 1;
+    const u = await env.DB.prepare("UPDATE rewards SET status = 'pending', token_id = ?1, claimed_at = ?2 WHERE id = ?3 AND address = ?4 AND status = 'earned' AND is_test = 1")
+      .bind(tokenId, Date.now(), rewardId, sess.address).run();
+    if (!u.meta.changes) {
+      await alertSuspicious(env, ctx, 'dbl:' + rewardId, `${T}Double réclamation simultanée refusée pour ${short(sess.address)} (« ${r.label} »).`);
+      throw new HttpError(409, 'Cette récompense a déjà été réclamée.');
     }
-    const tokenId = free[0] || stock[0] || 1;
+    await notify(env, ctx, 'claim', `${T}📨 Nouvelle demande de NFT : ${short(sess.address)} réclame le Neon Buddies #${String(tokenId).padStart(4, '0')} (${TIER_FR[r.tier]}, « ${r.label} »). Mode test : aucun NFT réel ne sera envoyé. Utilise /rewards ou l’espace admin pour valider.`, { adminLink: true });
+    return rewardView(await env.DB.prepare('SELECT * FROM rewards WHERE id = ?1').bind(rewardId).first());
+  }
+  if (!stock.length) {
+    await notify(env, ctx, 'stock', `🚫 Stock épuisé au niveau ${TIER_FR[r.tier]} : ${short(sess.address)} n’a pas pu réclamer « ${r.label} ».`, { throttle: ['empty:' + r.tier, 3600] });
+    throw new HttpError(409, 'Stock épuisé pour ce niveau de récompense. L\u2019administrateur a été prévenu.');
+  }
+  for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      const u = await env.DB.prepare("UPDATE rewards SET status = 'pending', token_id = ?1, claimed_at = ?2 WHERE id = ?3 AND address = ?4 AND status = 'earned'")
-        .bind(tokenId, Date.now(), rewardId, sess.address).run();
-      if (!u.meta.changes) {
-        await alertSuspicious(env, ctx, 'dbl:' + rewardId, `${T}Double réclamation simultanée refusée pour ${short(sess.address)} (« ${r.label} »).`);
-        throw new HttpError(409, 'Cette récompense a déjà été réclamée.');
+      const reserved = await reserveRealToken(env, rewardId, sess.address, stock);
+      if (reserved === null) {
+        const again = await env.DB.prepare('SELECT status FROM rewards WHERE id = ?1').bind(rewardId).first();
+        if (!again || again.status !== 'earned') {
+          await alertSuspicious(env, ctx, 'dbl:' + rewardId, `${T}Double réclamation simultanée refusée pour ${short(sess.address)} (« ${r.label} »).`);
+          throw new HttpError(409, 'Cette récompense a déjà été réclamée.');
+        }
+        await notify(env, ctx, 'stock', `🚫 Stock épuisé au niveau ${TIER_FR[r.tier]} : ${short(sess.address)} n’a pas pu réclamer « ${r.label} ».`, { throttle: ['empty:' + r.tier, 3600] });
+        throw new HttpError(409, 'Stock épuisé pour ce niveau de récompense. L\u2019administrateur a été prévenu.');
       }
-      await notify(env, ctx, 'claim', `${T}📨 Nouvelle demande de NFT : ${short(sess.address)} réclame le Neon Buddies #${String(tokenId).padStart(4, '0')} (${TIER_FR[r.tier]}, « ${r.label} »).${r.is_test ? ' Mode test : aucun NFT réel ne sera envoyé.' : ''} Utilise /rewards ou l’espace admin pour valider.`, { adminLink: true });
-      const left = free.length - 1;
-      if (!r.is_test && left <= num(env.STOCK_LOW_THRESHOLD, 2)) await notify(env, ctx, 'stock', `📉 Stock bas : il reste ${left} NFT disponible(s) au niveau ${TIER_FR[r.tier]}.`, { throttle: ['stock:' + r.tier + ':' + left, 86400] });
-      return rewardView(await env.DB.prepare('SELECT * FROM rewards WHERE id = ?1').bind(rewardId).first());
+      const saved = await env.DB.prepare('SELECT * FROM rewards WHERE id = ?1').bind(rewardId).first();
+      await notify(env, ctx, 'claim', `${T}📨 Nouvelle demande de NFT : ${short(sess.address)} réclame le Neon Buddies #${String(saved.token_id).padStart(4, '0')} (${TIER_FR[r.tier]}, « ${r.label} »). Utilise /rewards ou l’espace admin pour valider.`, { adminLink: true });
+      const usedTier = await env.DB.prepare("SELECT COUNT(*) AS n FROM rewards WHERE status IN ('pending','approved','sent') AND is_test = 0 AND tier = ?1").bind(r.tier).first();
+      const remain = Math.max(0, stock.length - usedTier.n);
+      if (remain <= num(env.STOCK_LOW_THRESHOLD, 2)) await notify(env, ctx, 'stock', `📉 Stock bas : il reste ${remain} NFT disponible(s) au niveau ${TIER_FR[r.tier]}.`, { throttle: ['stock:' + r.tier + ':' + remain, 86400] });
+      return rewardView(saved);
     } catch (e) {
       if (e instanceof HttpError) throw e;
-      if (!/UNIQUE/i.test(String(e && e.message))) throw e; // token pris en même temps : on réessaie
+      if (!/UNIQUE/i.test(String(e && e.message || e))) throw e;
     }
   }
   throw new HttpError(503, 'Réessaie dans un instant.');
+}
+
+/** Une seule instruction : plus petit jeton libre du palier, puis pending. Pas de UNION géant (limite D1). */
+async function reserveRealToken(env, rewardId, address, stock) {
+  const ids = stock.filter(n => Number.isInteger(n) && n >= 1 && n <= 100);
+  if (!ids.length) return null;
+  const list = ids.join(',');
+  const sql = `WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 100)
+    UPDATE rewards
+    SET status = 'pending', claimed_at = ?1,
+        token_id = (
+          SELECT n FROM seq
+          WHERE n IN (${list})
+            AND n NOT IN (
+              SELECT token_id FROM rewards
+              WHERE status IN ('pending','approved','sent') AND is_test = 0 AND token_id IS NOT NULL
+            )
+          ORDER BY n LIMIT 1
+        )
+    WHERE id = ?2 AND address = ?3 AND status = 'earned' AND is_test = 0
+      AND EXISTS (
+        SELECT 1 FROM seq
+        WHERE n IN (${list})
+          AND n NOT IN (
+            SELECT token_id FROM rewards
+            WHERE status IN ('pending','approved','sent') AND is_test = 0 AND token_id IS NOT NULL
+          )
+      )`;
+  const u = await env.DB.prepare(sql).bind(Date.now(), rewardId, address).run();
+  return u.meta.changes ? true : null;
 }
 
 /* ---------- administration ---------- */
@@ -500,7 +590,8 @@ async function adminApprove(env, id) {
   if (!r) throw new HttpError(404, 'Récompense introuvable');
   if (!r.is_test && !realClaimsOn(env)) throw new HttpError(403, 'Réclamations réelles désactivées : aucun transfert ne sera préparé ni envoyé.');
   if (r.status !== 'pending' && r.status !== 'approved') throw new HttpError(409, 'Statut actuel : ' + r.status);
-  if (c.onchain) {
+  // Le jeton affiché en mode test n'est pas réservé : on ne bloque pas l'essai s'il n'est plus chez l'admin.
+  if (!r.is_test && c.onchain) {
     const owner = await ownerOf(env, r.token_id);
     if (owner !== c.admin) throw new HttpError(409, `Le token #${r.token_id} n’appartient plus à l’administrateur (propriétaire : ${owner}).`);
   }
