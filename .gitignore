@@ -1,0 +1,10 @@
+node_modules/
+worker/node_modules/
+worker/.wrangler/
+worker/dist/
+worker/.dev.vars
+.dev.vars
+*.env
+.env*
+screenshots/
+*.zip

@@ -1,0 +1,4 @@
+-- Revue du 9 novembre 2026 : aucun changement de schéma.
+-- La base D1 neon-buddies-arena (c6957ed9-093a-4f0e-8bcc-abe5f7c3e7c4)
+-- a déjà reçu schema.sql (CREATE TABLE IF NOT EXISTS). Ne pas rejouer de DROP.
+-- Ce fichier ne contient volontairement aucune instruction.

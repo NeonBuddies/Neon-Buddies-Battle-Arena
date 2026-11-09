@@ -1,0 +1,708 @@
+/* NEON BUDDIES — i18n FR/EN.
+ * Le français est la langue source : chaque clé du dictionnaire est le texte français exact,
+ * la valeur est sa traduction anglaise. Les clés contenant {x} sont des modèles (texte dynamique).
+ * La traduction du DOM est automatique (MutationObserver) : texte, placeholder, aria-label, title, alt.
+ * Les éléments marqués translate="no" (noms des NFT, adresses, traits on-chain) ne sont jamais traduits. */
+(function (root) {
+  'use strict';
+  /*DICT-START*/
+  // Dictionnaire complet FR (clé = texte source français) → EN. {x} = variable.
+  var EN = {
+    "NEON BUDDIES — NFT BATTLE ARENA": "NEON BUDDIES — NFT BATTLE ARENA",
+    "NEON BUDDIES — NFT BATTLE ARENA : jeu de combat cyberpunk avec les 100 personnages Neon Buddies 2.": "NEON BUDDIES — NFT BATTLE ARENA: a cyberpunk battle game featuring the 100 Neon Buddies 2 characters.",
+    "Accueil": "Home",
+    "Galerie": "Gallery",
+    "Arène": "Arena",
+    "Classement": "Leaderboard",
+    "Récompenses": "Rewards",
+    "Ajouter": "Add",
+    "Profil": "Profile",
+    "Accueil Neon Buddies": "Neon Buddies home",
+    "Navigation principale": "Main navigation",
+    "Tes points": "Your points",
+    "Langue": "Language",
+    "pts": "pts",
+    "NEON": "NEON",
+    "BUDDIES": "BUDDIES",
+    "NFT BATTLE ARENA": "NFT BATTLE ARENA",
+    "Fermer": "Close",
+    "VS": "VS",
+    "x1": "x1",
+    "x2": "x2",
+    "x4": "x4",
+    "Wallet": "Wallet",
+    "Telegram": "Telegram",
+    "Neon Buddies 2 — Robinhood Chain": "Neon Buddies 2 — Robinhood Chain",
+    "X @BusinessGry": "X @BusinessGry",
+    "Choisis ton Neon Buddy, affronte les 100 personnages de la collection, gagne de l’XP et grimpe au classement.": "Pick your Neon Buddy, fight the 100 characters of the collection, earn XP and climb the leaderboard.",
+    "⚡ Combat rapide": "⚡ Quick fight",
+    "Voir la galerie": "View gallery",
+    "Personnages légendaires": "Legendary characters",
+    "Points": "Points",
+    "Rang": "Rank",
+    "Victoires / Défaites": "Wins / Losses",
+    "Meilleure série": "Best streak",
+    "Recrue": "Rookie",
+    "Runner": "Runner",
+    "Netrunner": "Netrunner",
+    "Cyber-Élite": "Cyber Elite",
+    "Légende Néon": "Neon Legend",
+    "Rechercher (nom, n°, famille…)": "Search (name, no., family…)",
+    "Rechercher": "Search",
+    "Rechercher…": "Search…",
+    "Trier": "Sort",
+    "Trier : numéro": "Sort: number",
+    "Trier : puissance": "Sort: power",
+    "Trier : niveau": "Sort: level",
+    "Trier : rang de rareté": "Sort: rarity rank",
+    "Filtrer par rareté": "Filter by rarity",
+    "Aucun personnage ne correspond.": "No character matches.",
+    "Aucun résultat.": "No results.",
+    "Toutes": "All",
+    "Ajoutés": "Added",
+    "Commun": "Common",
+    "Rare": "Rare",
+    "Épique": "Epic",
+    "Légendaire": "Legendary",
+    "Spécial": "Special",
+    "Niv. {n}": "Lv. {n}",
+    "Niv.": "Lv.",
+    "{w}V / {l}D": "{w}W / {l}L",
+    "{w} V · Niv. {l}": "{w} W · Lv. {l}",
+    "Supprimer": "Delete",
+    "PV": "HP",
+    "Attaque": "Attack",
+    "Défense": "Defense",
+    "Vitesse": "Speed",
+    "Critique": "Critical",
+    "Rareté de jeu · rang {r}": "Game rarity · rank {r}",
+    "NFT ajouté (hors classement)": "Added NFT (unranked)",
+    "Voir le token #{n} sur Robinhood Chain ↗": "View token #{n} on Robinhood Chain ↗",
+    "Niveau {n}": "Level {n}",
+    "Niveau": "Level",
+    "— {a} / {b} XP": "— {a} / {b} XP",
+    "— niveau max": "— max level",
+    "Puissance ⚡{p} · Spéciale : {s} · {w} victoires / {l} défaites": "Power ⚡{p} · Special: {s} · {w} wins / {l} losses",
+    "⚔ Mon combattant": "⚔ My fighter",
+    "🎯 Adversaire": "🎯 Opponent",
+    "famille :": "family:",
+    "palette :": "palette:",
+    "tenue :": "outfit:",
+    "yeux :": "eyes:",
+    "couvre-chef :": "headwear:",
+    "accessoire :": "accessory:",
+    "Robot Couronne": "Crowned Robot",
+    "Robot Glacé": "Frost Robot",
+    "Lapin Pastel": "Pastel Bunny",
+    "Lapin Cyber": "Cyber Bunny",
+    "Lapin Holo": "Holo Bunny",
+    "Mage Encapuchonné": "Hooded Mage",
+    "Panda Néon": "Neon Panda",
+    "Petit Démon": "Little Demon",
+    "Ange Doré": "Golden Angel",
+    "Renard Ailé": "Winged Fox",
+    "Personnalisé": "Custom",
+    "Laser Royal": "Royal Laser",
+    "Blizzard Binaire": "Binary Blizzard",
+    "Bond Sucré": "Sugar Leap",
+    "Coup Cybernétique": "Cybernetic Strike",
+    "Éclat Holographique": "Holographic Burst",
+    "Sort Néon": "Neon Spell",
+    "Paume du Panda": "Panda Palm",
+    "Flamme Fourchue": "Forked Flame",
+    "Rayon Céleste": "Celestial Ray",
+    "Plongeon Ailé": "Winged Dive",
+    "Frappe Néon": "Neon Strike",
+    "Couronne Orbitale": "Orbital Crown",
+    "Brasier Infernal": "Infernal Blaze",
+    "Hiver Éternel": "Eternal Winter",
+    "Choisis ton combattant": "Choose your fighter",
+    "Choisis l’adversaire": "Choose the opponent",
+    "Mode de jeu": "Game mode",
+    "⚔ Duel": "⚔ Duel",
+    "🤖 Solo vs bots": "🤖 Solo vs bots",
+    "🌐 PvP en ligne": "🌐 Online PvP",
+    "🏟 Tournoi": "🏟 Tournament",
+    "👹 Boss": "👹 Boss",
+    "Ton combattant": "Your fighter",
+    "Choisir": "Choose",
+    "🎲 Aléatoire": "🎲 Random",
+    "Adversaire": "Opponent",
+    "Bot adversaire": "Bot opponent",
+    "Adversaire en ligne": "Online opponent",
+    "Tableau à 8": "8-player bracket",
+    "Boss du jour": "Boss of the day",
+    "Bot aléatoire": "Random bot",
+    "Joueur en ligne": "Online player",
+    "7 adversaires": "7 opponents",
+    "BOSS": "BOSS",
+    "Combat classé (serveur) — points, missions et récompenses NFT": "Ranked fight (server) — points, missions and NFT rewards",
+    "⚔ Lancer le combat": "⚔ Start the fight",
+    "🤖 Affronter le bot": "🤖 Fight the bot",
+    "🌐 Chercher un adversaire": "🌐 Find an opponent",
+    "🏟 Lancer le tournoi": "🏟 Start the tournament",
+    "👹 Affronter le boss": "👹 Fight the boss",
+    "Le combat est automatique : vitesse, attaque, défense et coups critiques décident du vainqueur. Toutes les 3 actions, ton personnage lance son attaque spéciale.": "Fights are automatic: speed, attack, defense and critical hits decide the winner. Every 3 actions, your character unleashes its special attack.",
+    "Duel libre : choisis ton combattant et ton adversaire parmi la collection.": "Free duel: pick your fighter and your opponent from the collection.",
+    "Affronte un bot dont le niveau et les stats dépendent de la difficulté. Plus c’est dur, plus tu gagnes de points.": "Fight a bot whose level and stats depend on the difficulty. The harder it is, the more points you earn.",
+    "Difficulté": "Difficulty",
+    "Facile": "Easy",
+    "Normal": "Normal",
+    "Difficile": "Hard",
+    "Cauchemar": "Nightmare",
+    "×{n}": "×{n}",
+    "Matchmaking en ligne par sondage : le serveur t’associe à un autre joueur connecté et calcule le combat. Classement ELO séparé. Personne en face ? Un BOT te sera proposé.": "Online matchmaking by polling: the server pairs you with another signed-in player and computes the fight. Separate ELO ranking. Nobody around? You’ll be offered a BOT.",
+    "Le PvP en ligne nécessite le serveur et un wallet connecté (signature). Hors ligne, tu peux affronter un BOT.": "Online PvP requires the server and a connected wallet (signature). Offline, you can fight a BOT.",
+    "Tournoi à élimination directe : {n} places (toi, des fantômes d’autres joueurs et des bots, pas des adversaires en direct). Points selon ton classement : 1er {a} · finaliste {b} · demi {c} · quart {d}. Un tournoi classé par jour.": "Single-elimination tournament: {n} slots (you, ghosts of other players and bots, not live opponents). Points by placement: 1st {a} · finalist {b} · semi {c} · quarter {d}. One ranked tournament per day.",
+    "Résultats du jour": "Today’s results",
+    "Aucun tournoi joué aujourd’hui.": "No tournament played today.",
+    "— {n} phases, PV énormes. Victoire : {p} points ; sinon points selon les dégâts infligés.": "— {n} phases, huge HP. Win: {p} points; otherwise points based on damage dealt.",
+    "Tentatives restantes aujourd’hui : {a} / {b}": "Attempts left today: {a} / {b}",
+    "Tentatives restantes aujourd’hui : …": "Attempts left today: …",
+    "ROI CHROME OMEGA": "OMEGA CHROME KING",
+    "ARCHIDÉMON NÉON": "NEON ARCHDEMON",
+    "TITAN DE GIVRE": "FROST TITAN",
+    "Tour {n}": "Turn {n}",
+    "Tour 0": "Turn 0",
+    "Passer ⏭": "Skip ⏭",
+    "Combat !": "Fight!",
+    "ESQUIVE": "DODGE",
+    "CRITIQUE ! {d}": "CRITICAL! {d}",
+    "Fin — {n} tours": "End — {n} turns",
+    "PHASE {n}": "PHASE {n}",
+    "{a} prend l’initiative !": "{a} takes the initiative!",
+    "{a} esquive l’attaque de {b} !": "{a} dodges {b}’s attack!",
+    "{a} attaque : {n} dégâts": "{a} attacks: {n} damage",
+    "{a} attaque : {n} dégâts (CRITIQUE !)": "{a} attacks: {n} damage (CRITICAL!)",
+    "{a} lance {s} : {n} dégâts": "{a} unleashes {s}: {n} damage",
+    "{a} lance {s} : {n} dégâts (CRITIQUE !)": "{a} unleashes {s}: {n} damage (CRITICAL!)",
+    "{a} remporte le combat !": "{a} wins the fight!",
+    "{a} remporte le combat ! (limite de tours)": "{a} wins the fight! (turn limit)",
+    "{a} — {p}": "{a} — {p}",
+    "{a} — {p} (+{h} PV)": "{a} — {p} (+{h} HP)",
+    "PHASE 2 : surcharge royale ! Attaque +12 %": "PHASE 2: royal overload! Attack +12%",
+    "PHASE 3 : mode Oméga, il se répare !": "PHASE 3: Omega mode, it repairs itself!",
+    "PHASE 2 : rage infernale ! Vitesse et attaque augmentées": "PHASE 2: infernal rage! Speed and attack increased",
+    "PHASE 3 : dernier souffle brûlant !": "PHASE 3: burning last breath!",
+    "PHASE 2 : armure de glace ! Défense +15 %": "PHASE 2: ice armor! Defense +15%",
+    "PHASE 3 : l’armure se brise, il frappe plus fort !": "PHASE 3: the armor shatters, it hits harder!",
+    "/ {n} PV": "/ {n} HP",
+    "VICTOIRE": "VICTORY",
+    "DÉFAITE": "DEFEAT",
+    "🏆 Récompense NFT {t} débloquée : {l}": "🏆 {t} NFT reward unlocked: {l}",
+    "{a} gagne en {n} tours.": "{a} wins in {n} turns.",
+    "Points classés (serveur)": "Ranked points (server)",
+    "Points locaux": "Local points",
+    "Points gagnés": "Points earned",
+    "XP {a}": "XP {a}",
+    "NIVEAU SUPÉRIEUR !": "LEVEL UP!",
+    "Niv. {a} → {b}": "Lv. {a} → {b}",
+    "+{x} (Niv. {n})": "+{x} (Lv. {n})",
+    "Série en cours": "Current streak",
+    "↻ Revanche": "↻ Rematch",
+    "🎲 Nouvel adversaire": "🎲 New opponent",
+    "Changer": "Change",
+    "♛ Classement": "♛ Leaderboard",
+    "🌐 Nouveau match": "🌐 New match",
+    "✔ Mission : {m}": "✔ Mission: {m}",
+    "✔ {m}": "✔ {m}",
+    "Duel": "Duel",
+    "Solo vs bots": "Solo vs bots",
+    "PvP en ligne": "Online PvP",
+    "Tournoi": "Tournament",
+    "Boss": "Boss",
+    "Solo vs bots · {d}": "Solo vs bots · {d}",
+    "Adversaire :": "Opponent:",
+    "· ELO {d} → {r}": "· ELO {d} → {r}",
+    "Dégâts infligés au boss : {a} / {b} PV · Tentatives restantes : {c}": "Damage dealt to the boss: {a} / {b} HP · Attempts left: {c}",
+    "🏟 {p} (+{n} pts)": "🏟 {p} (+{n} pts)",
+    "Champion !": "Champion!",
+    "Finaliste": "Finalist",
+    "Demi-finaliste": "Semi-finalist",
+    "Quart de finaliste": "Quarter-finalist",
+    "Quarts de finale": "Quarter-finals",
+    "Demi-finales": "Semi-finals",
+    "Finale": "Final",
+    "vs": "vs",
+    "BOT {n}": "BOT {n}",
+    "{n} (fantôme)": "{n} (ghost)",
+    "🔎 Recherche d’un adversaire en ligne…": "🔎 Looking for an online opponent…",
+    "🔎 Recherche d’un adversaire en ligne… {n} s": "🔎 Looking for an online opponent… {n}s",
+    "Annuler": "Cancel",
+    "Aucun adversaire en ligne pour le moment.": "No online opponent right now.",
+    "🤖 Affronter un BOT": "🤖 Fight a BOT",
+    "↻ Réessayer": "↻ Try again",
+    "Recherche annulée.": "Search cancelled.",
+    "Les NFT ajoutés ne peuvent pas jouer en PvP classé.": "Added NFTs can’t play ranked PvP.",
+    "Le PvP en ligne nécessite le serveur et un wallet connecté.": "Online PvP requires the server and a connected wallet.",
+    "Choisis deux personnages différents.": "Pick two different characters.",
+    "Les NFT ajoutés combattent hors classement (combat local).": "Added NFTs fight unranked (local fight).",
+    "Tentatives contre le boss épuisées pour aujourd’hui. Reviens demain !": "No boss attempts left today. Come back tomorrow!",
+    "Tournoi local du jour déjà joué. Reviens demain !": "Today’s local tournament already played. Come back tomorrow!",
+    "Serveur indisponible": "Server unavailable",
+    "Personnage": "Character",
+    "V": "W",
+    "D": "L",
+    "% V": "Win %",
+    "Puissance": "Power",
+    "Connexion par signature d’un message : aucune transaction, aucun frais, aucune autorisation sur tes NFT.": "Sign-in by signing a message: no transaction, no fees, no permission over your NFTs.",
+    "Missions du jour": "Daily missions",
+    "Mes récompenses NFT": "My NFT rewards",
+    "📜 Règlement des récompenses": "📜 Reward rules",
+    "Classement des joueurs": "Player leaderboard",
+    "Collection on-chain": "On-chain collection",
+    "Numéro du token": "Token number",
+    "Vérifier le propriétaire": "Check owner",
+    "Lecture seule via le RPC public de Robinhood Chain.": "Read-only via the public Robinhood Chain RPC.",
+    "Espace admin": "Admin area",
+    "Résumé": "Summary",
+    "Notifications": "Notifications",
+    "Récompense spéciale": "Special reward",
+    "Adresse du joueur 0x…": "Player address 0x…",
+    "Motif (ex. 1er de la saison)": "Reason (e.g. season #1)",
+    "Récompense de TEST (aucun NFT réel)": "TEST reward (no real NFT)",
+    "Attribuer": "Grant",
+    "Mode test d’un joueur": "Player test mode",
+    "Adresse 0x… (vide = moi)": "Address 0x… (empty = me)",
+    "Activer le mode test": "Enable test mode",
+    "Appliquer": "Apply",
+    "Demandes de NFT": "NFT requests",
+    "Ajouter mon NFT": "Add my NFT",
+    "📁 Choisis ou dépose une image": "📁 Choose or drop an image",
+    "JPG, PNG, WEBP, GIF — redimensionnée automatiquement": "JPG, PNG, WEBP, GIF — resized automatically",
+    "Aperçu": "Preview",
+    "Nom": "Name",
+    "Ex. Mon Buddy Cosmique": "e.g. My Cosmic Buddy",
+    "Rareté": "Rarity",
+    "Famille (bonus de stats)": "Family (stat bonus)",
+    "Ajouter à ma collection": "Add to my collection",
+    "Mes NFT ajoutés": "My added NFTs",
+    "Aucun NFT ajouté pour l’instant.": "No NFT added yet.",
+    "Aucune (équilibré)": "None (balanced)",
+    "Statistiques de départ (niveau {n}) :": "Starting stats (level {n}):",
+    "Traitement de l’image…": "Processing image…",
+    "Image prête.": "Image ready.",
+    "Image trop lourde (25 Mo maximum).": "Image too large (25 MB max).",
+    "Ce fichier n’est pas une image lisible.": "This file isn’t a readable image.",
+    "Ajoute d’abord une image.": "Add an image first.",
+    "Donne un nom à ton personnage.": "Give your character a name.",
+    "Stockage plein : impossible d’ajouter ce NFT.": "Storage full: can’t add this NFT.",
+    "« {n} » a rejoint ta collection !": "“{n}” joined your collection!",
+    "NFT ajouté : {n}": "NFT added: {n}",
+    "Supprimer « {n} » et sa progression ?": "Delete “{n}” and its progress?",
+    "NFT supprimé.": "NFT deleted.",
+    "Stockage plein : supprime un NFT ajouté pour libérer de la place.": "Storage full: delete an added NFT to free up space.",
+    "Sauvegarde impossible dans ce navigateur.": "Saving isn’t possible in this browser.",
+    "Profil & sauvegarde": "Profile & save",
+    "Derniers combats": "Recent fights",
+    "Réglages": "Settings",
+    "Effets sonores": "Sound effects",
+    "Sauvegarde": "Save",
+    "Ta progression est enregistrée automatiquement dans ce navigateur (localStorage).": "Your progress is saved automatically in this browser (localStorage).",
+    "Exporter": "Export",
+    "Importer": "Import",
+    "Réinitialiser": "Reset",
+    "Collection": "Collection",
+    "Site officiel": "Official site",
+    "Jeu gratuit, sans achat. Le wallet est facultatif (récompenses uniquement).": "Free game, no purchase. The wallet is optional (rewards only).",
+    "Joueur": "Player",
+    "{n} points avant le rang « {r} »": "{n} points to the “{r}” rank",
+    "Rang maximum atteint !": "Maximum rank reached!",
+    "Combats": "Fights",
+    "Victoires": "Wins",
+    "Défaites": "Losses",
+    "Taux de victoire": "Win rate",
+    "Série actuelle": "Current streak",
+    "Personnages entraînés": "Characters trained",
+    "NFT ajoutés": "Added NFTs",
+    "{a} vs {b}": "{a} vs {b}",
+    "V +{n}": "W +{n}",
+    "D +{n}": "L +{n}",
+    "Aucun combat pour l’instant.": "No fights yet.",
+    "Confirmation": "Confirmation",
+    "Oui, confirmer": "Yes, confirm",
+    "Effacer toute la progression (points, XP, classement et NFT ajoutés) ?": "Erase all progress (points, XP, leaderboard and added NFTs)?",
+    "Progression réinitialisée.": "Progress reset.",
+    "Sauvegarde exportée.": "Save exported.",
+    "Sauvegarde importée.": "Save imported.",
+    "Fichier de sauvegarde invalide.": "Invalid save file.",
+    "Gagne 3 combats": "Win 3 fights",
+    "Gagne 5 combats": "Win 5 fights",
+    "Dispute 5 combats": "Play 5 fights",
+    "Dispute 10 combats": "Play 10 fights",
+    "Gagne avec un personnage Commun": "Win with a Common character",
+    "Gagne 2 fois avec un personnage Rare": "Win twice with a Rare character",
+    "Bats un adversaire Épique": "Beat an Epic opponent",
+    "Bats un adversaire Légendaire": "Beat a Legendary opponent",
+    "Inflige 5 coups critiques": "Land 5 critical hits",
+    "Lance 6 attaques spéciales": "Unleash 6 special attacks",
+    "Enchaîne 3 victoires d’affilée": "Win 3 fights in a row",
+    "Aucun wallet détecté dans ce navigateur.": "No wallet detected in this browser.",
+    "🦊 Ouvrir dans MetaMask": "🦊 Open in MetaMask",
+    "Installer MetaMask": "Install MetaMask",
+    "Lien MetaMask mobile": "MetaMask mobile link",
+    "Wallet non connecté.": "Wallet not connected.",
+    "🦊 Connecter mon wallet": "🦊 Connect my wallet",
+    "Adresse :": "Address:",
+    "Réseau :": "Network:",
+    "Serveur :": "Server:",
+    "✓ {c} ({id})": "✓ {c} ({id})",
+    "⚠ autre réseau ({id})": "⚠ other network ({id})",
+    "non configuré (mode hors ligne)": "not configured (offline mode)",
+    "hors ligne — jeu local, aucune réclamation NFT": "offline — local game, no NFT claim",
+    "· réclamations réelles désactivées": "· real claims disabled",
+    "Serveur de récompenses hors ligne : jeu en mode local uniquement. Aucune réclamation NFT réelle, aucun combat classé envoyé.": "Rewards server offline: local game only. No real NFT claim and no ranked fight is sent.",
+    "Serveur joignable. Réclamations NFT réelles désactivées : aucun NFT n’est réservé ni envoyé. Service non audité.": "Server reachable. Real NFT claims are disabled: no NFT is reserved or sent. Service not audited.",
+    "Serveur joignable. Réclamations réelles manuelles et non auditées : aucun transfert sans la signature du wallet administrateur.": "Server reachable. Real claims are manual and not audited: no transfer without the administrator wallet signature.",
+    "Serveur de récompenses injoignable. Jeu local uniquement : aucune réclamation NFT, aucun combat classé.": "Rewards server unreachable. Local game only: no NFT claim, no ranked fight.",
+    "Serveur de récompenses non configuré. Jeu local uniquement : aucune réclamation NFT.": "Rewards server not configured. Local game only: no NFT claim.",
+    "Serveur de récompenses hors ligne. Espace admin indisponible : aucun transfert ne peut être préparé.": "Rewards server offline. Admin area unavailable: no transfer can be prepared.",
+    "Réclamation réelle désactivée : le serveur n’envoie aucun NFT.": "Real claim disabled: the server will not send any NFT.",
+    "Réclamations réelles désactivées sur le serveur. Aucun transfert ne sera préparé.": "Real claims are disabled on the server. No transfer will be prepared.",
+    "Sur Android : ouvre ce jeu en HTTPS public dans l’application MetaMask (pas une adresse localhost). Connecte le wallet, signe le message (aucune transaction, aucun frais) et sélectionne Robinhood Chain (identifiant 4663). Le compte fondateur est un smart account EIP-7702 : la signature est vérifiée, l’adresse seule ne suffit pas.": "On Android: open this game over public HTTPS inside the MetaMask app (not a localhost address). Connect the wallet, sign the message (no transaction, no fee) and select Robinhood Chain (id 4663). The founder account is an EIP-7702 smart account: the signature is checked, the address alone is not enough.",
+    "✓ connecté": "✓ connected",
+    "✓ connecté (admin)": "✓ connected (admin)",
+    "✓ connecté · réclamations réelles désactivées": "✓ connected · real claims disabled",
+    "✓ connecté (admin) · réclamations réelles désactivées": "✓ connected (admin) · real claims disabled",
+    "non connecté": "not connected",
+    "Passer sur Robinhood Chain": "Switch to Robinhood Chain",
+    "✍ Se connecter (signature)": "✍ Sign in (signature)",
+    "👑 FONDATEUR": "👑 FOUNDER",
+    "🔐 Espace admin": "🔐 Admin area",
+    "Déconnecter": "Disconnect",
+    "À réclamer": "To claim",
+    "En attente de validation": "Awaiting approval",
+    "Validée — envoi en cours": "Approved — sending",
+    "Envoyé": "Sent",
+    "Refusée": "Rejected",
+    "TEST": "TEST",
+    "NFT de test (non réservé) :": "Test NFT (not reserved):",
+    "NFT réservé :": "Reserved NFT:",
+    "Transaction :": "Transaction:",
+    "Note : {n}": "Note: {n}",
+    "Réclamation réelle désactivée : le fondateur détient déjà le stock.": "Real claim disabled: the founder already holds the stock.",
+    "🧪 Réclamer (test)": "🧪 Claim (test)",
+    "🎁 Réclamer le NFT": "🎁 Claim the NFT",
+    "Lecture de Robinhood Chain…": "Reading Robinhood Chain…",
+    "Réseau": "Network",
+    "Contrat": "Contract",
+    "Nom on-chain": "On-chain name",
+    "Propriétaire #{n}": "Owner of #{n}",
+    "{a} (admin)": "{a} (admin)",
+    "(admin)": "(admin)",
+    "RPC injoignable : {e}": "RPC unreachable: {e}",
+    "Mode hors ligne : missions et points enregistrés dans ce navigateur.": "Offline mode: missions and points are stored in this browser.",
+    "Le serveur de récompenses n’est pas encore configuré (js/config.js → API_URL). Les récompenses NFT et le classement des joueurs seront disponibles une fois le serveur en ligne.": "The rewards server isn’t configured yet (js/config.js → API_URL). NFT rewards and the player leaderboard will be available once the server is online.",
+    "Classement en ligne indisponible hors ligne.": "Online leaderboard unavailable offline.",
+    "Aucun joueur classé pour l’instant.": "No ranked players yet.",
+    "Connecte ton wallet et signe la connexion pour que tes missions comptent au classement.": "Connect your wallet and sign in so your missions count towards the leaderboard.",
+    "Récompenses à débloquer en combats classés :": "Rewards to unlock in ranked fights:",
+    "— {l}": "— {l}",
+    "(stock : {n})": "(stock: {n})",
+    "{t} — {l}": "{t} — {l}",
+    "Missions classées (serveur), renouvelées chaque jour à minuit UTC (01:00 à Bruxelles en hiver, 02:00 en été).": "Ranked missions (server), renewed every day at midnight UTC (01:00 in Brussels in winter, 02:00 in summer).",
+    "Tu possèdes les 100 Neon Buddies on-chain. Tes combats suivent exactement les mêmes règles que tous les joueurs (aucun bonus) et tu apparais dans le classement global.": "You own the 100 Neon Buddies on-chain. Your fights follow exactly the same rules as every player (no bonus) and you appear in the global leaderboard.",
+    "Réclamations réelles désactivées : tu détiens déjà le stock. Utilise le mode test pour essayer tout le parcours.": "Real claims disabled: you already hold the stock. Use test mode to try the whole flow.",
+    "🧪 Mode test des récompenses (aucun NFT réel, aucun crypto dépensé)": "🧪 Rewards test mode (no real NFT, no crypto spent)",
+    "MODE TEST": "TEST MODE",
+    "activé par l’administrateur pour ton compte.": "enabled by the administrator for your account.",
+    "Points classés": "Ranked points",
+    "Aucune récompense obtenue pour l’instant.": "No reward earned yet.",
+    "Atteindre 3 000 points classés": "Reach 3,000 ranked points",
+    "10 victoires classées d’affilée": "10 ranked wins in a row",
+    "150 victoires classées": "150 ranked wins",
+    "40 victoires contre des adversaires Légendaires": "40 wins against Legendary opponents",
+    "Demande envoyée : NFT #{n} réservé, en attente de validation.": "Request sent: NFT #{n} reserved, awaiting approval.",
+    "Connecté en administrateur ✓": "Signed in as administrator ✓",
+    "Connecté au serveur ✓": "Signed in to the server ✓",
+    "Wallet déconnecté.": "Wallet disconnected.",
+    "Lecture…": "Reading…",
+    "Token #{n} :": "Token #{n}:",
+    "Le serveur n’est pas configuré (js/config.js → API_URL).": "The server isn’t configured (js/config.js → API_URL).",
+    "Accès réservé": "Restricted access",
+    "Seul le wallet administrateur": "Only the administrator wallet",
+    "peut ouvrir cet espace. Le serveur vérifie la signature.": "can open this area. The server verifies the signature.",
+    "✍ Signer la connexion admin": "✍ Sign admin sign-in",
+    "Ce wallet n’est pas l’administrateur.": "This wallet isn’t the administrator.",
+    "En attente": "Pending",
+    "Validées (à envoyer)": "Approved (to send)",
+    "Envoyées": "Sent",
+    "Refusées": "Rejected",
+    "Non réclamées": "Unclaimed",
+    "✓ actif": "✓ active",
+    "non configuré": "not configured",
+    "Aucune notification.": "No notifications.",
+    "Validées": "Approved",
+    "Toutes (tests inclus)": "All (tests included)",
+    "Joueur :": "Player:",
+    "Token :": "Token:",
+    "Tx :": "Tx:",
+    "✅ Approuver et préparer le transfert": "✅ Approve and prepare the transfer",
+    "🧪 Simuler le transfert": "🧪 Simulate the transfer",
+    "✍ Signer le transfert avec mon wallet": "✍ Sign the transfer with my wallet",
+    "Refuser": "Reject",
+    "Aucune demande.": "No requests.",
+    "Vérification…": "Checking…",
+    "Transfert simulé — aucune transaction ne sera signée ni envoyée": "Simulated transfer — no transaction will be signed or sent",
+    "Simulation en lecture seule sur Robinhood Chain (eth_call + estimation du gaz) de safeTransferFrom(admin →": "Read-only simulation on Robinhood Chain (eth_call + gas estimate) of safeTransferFrom(admin →",
+    "🧪 Lancer la simulation": "🧪 Run the simulation",
+    "Transaction à signer (safeTransferFrom)": "Transaction to sign (safeTransferFrom)",
+    "De :": "From:",
+    "Vers le contrat :": "To contract:",
+    "— token #{n}": "— token #{n}",
+    "ownerOf(#{n}) :": "ownerOf(#{n}):",
+    "✓ admin": "✓ admin",
+    "✗ {o}": "✗ {o}",
+    "✗ lecture impossible": "✗ unreadable",
+    "Données :": "Data:",
+    "Signer et envoyer avec mon wallet": "Sign and send with my wallet",
+    "…ou colle un hash de transaction 0x…": "…or paste a transaction hash 0x…",
+    "Vérifier": "Verify",
+    "Connecte le wallet administrateur pour signer.": "Connect the administrator wallet to sign.",
+    "Confirme la transaction dans ton wallet…": "Confirm the transaction in your wallet…",
+    "Envoyée :": "Sent:",
+    "— attente de confirmation…": "— waiting for confirmation…",
+    "✓ Transfert vérifié sur la blockchain.": "✓ Transfer verified on-chain.",
+    "NFT envoyé et vérifié ✓": "NFT sent and verified ✓",
+    "En attente de confirmation…": "Waiting for confirmation…",
+    "Refuser cette demande ? Le NFT réservé redevient disponible.": "Reject this request? The reserved NFT becomes available again.",
+    "Demande refusée.": "Request rejected.",
+    "✓ Simulation réussie (gaz estimé {g}). Récompense de test marquée « envoyée » — aucun NFT n’a bougé.": "✓ Simulation succeeded (estimated gas {g}). Test reward marked “sent” — no NFT moved.",
+    "✓ Simulation réussie. Récompense de test marquée « envoyée » — aucun NFT n’a bougé.": "✓ Simulation succeeded. Test reward marked “sent” — no NFT moved.",
+    "Simulation en échec : {r}": "Simulation failed: {r}",
+    "Mode test activé : récompenses de TEST uniquement.": "Test mode enabled: TEST rewards only.",
+    "Mode test désactivé.": "Test mode disabled.",
+    "Mode test activé pour {a}": "Test mode enabled for {a}",
+    "Mode test désactivé pour {a}": "Test mode disabled for {a}",
+    "Récompense attribuée.": "Reward granted.",
+    "Refusé par l’administrateur": "Rejected by the administrator",
+    "Refusé via Telegram": "Rejected via Telegram",
+    "TEST — transfert simulé (eth_call OK, gaz estimé {g}). Aucun NFT envoyé.": "TEST — simulated transfer (eth_call OK, estimated gas {g}). No NFT sent.",
+    "TEST — transfert simulé (eth_call OK). Aucun NFT envoyé.": "TEST — simulated transfer (eth_call OK). No NFT sent.",
+    "TEST — la simulation échoue : {r}": "TEST — the simulation fails: {r}",
+    "Erreur": "Error",
+    "Demande refusée dans le wallet.": "Request rejected in the wallet.",
+    "Aucun wallet détecté : installe MetaMask (ou un wallet compatible).": "No wallet detected: install MetaMask (or a compatible wallet).",
+    "Ouvre le jeu dans l’application MetaMask.": "Open the game in the MetaMask app.",
+    "Wallet non connecté": "Wallet not connected",
+    "Serveur non configuré": "Server not configured",
+    "Erreur RPC": "RPC error",
+    "Erreur RPC : {m}": "RPC error: {m}",
+    "ADMIN_ADDRESS non configurée": "ADMIN_ADDRESS not configured",
+    "Adresse invalide": "Invalid address",
+    "Adversaire inconnu": "Unknown opponent",
+    "Approuve d’abord la demande.": "Approve the request first.",
+    "Aucun transfert correspondant (admin → joueur, bon token) dans cette transaction.": "No matching transfer (admin → player, right token) in this transaction.",
+    "Cette récompense a déjà été réclamée.": "This reward has already been claimed.",
+    "Cette transaction est déjà associée à une autre récompense.": "This transaction is already linked to another reward.",
+    "Combattant inconnu (combats classés : uniquement les 100 Neon Buddies).": "Unknown fighter (ranked fights: only the 100 Neon Buddies).",
+    "Combattant inconnu": "Unknown fighter",
+    "Connexion requise": "Sign-in required",
+    "Difficulté inconnue": "Unknown difficulty",
+    "Hash de transaction invalide": "Invalid transaction hash",
+    "Impossible de refuser cette récompense (déjà envoyée ou introuvable).": "Can’t reject this reward (already sent or not found).",
+    "JSON invalide": "Invalid JSON",
+    "La transaction a échoué sur la blockchain.": "The transaction failed on-chain.",
+    "Le fondateur détient déjà le stock : seule une récompense de TEST peut lui être attribuée.": "The founder already holds the stock: only a TEST reward can be granted to them.",
+    "Le joueur n’est pas (encore) propriétaire du token.": "The player isn’t the token owner (yet).",
+    "Limite quotidienne de combats classés atteinte.": "Daily ranked fight limit reached.",
+    "Mauvais réseau RPC": "Wrong RPC network",
+    "Non autorisé": "Unauthorized",
+    "Nonce invalide ou expiré": "Invalid or expired nonce",
+    "Patiente un instant avant le prochain combat.": "Wait a moment before the next fight.",
+    "RPC indisponible": "RPC unavailable",
+    "Requête invalide": "Invalid request",
+    "Requête trop grande": "Request too large",
+    "Route inconnue": "Unknown route",
+    "Réclamation réelle désactivée pour le fondateur : il détient déjà le stock. Utilise le mode test.": "Real claim disabled for the founder: they already hold the stock. Use test mode.",
+    "Récompense de TEST : utilise la simulation, aucune transaction réelle.": "TEST reward: use the simulation, no real transaction.",
+    "Récompense introuvable": "Reward not found",
+    "Réessaie dans un instant.": "Try again in a moment.",
+    "Réservé à l’administrateur": "Administrator only",
+    "Session expirée, reconnecte-toi.": "Session expired, please sign in again.",
+    "Signature invalide": "Invalid signature",
+    "Simulation réservée aux récompenses de TEST.": "Simulation is reserved for TEST rewards.",
+    "Statut actuel : {s}": "Current status: {s}",
+    "Stock épuisé pour ce niveau de récompense. L’administrateur a été prévenu.": "Out of stock for this reward tier. The administrator has been notified.",
+    "Trop de requêtes, réessaie dans un instant.": "Too many requests, try again in a moment.",
+    "Tu as déjà joué le tournoi du jour. Reviens demain !": "You already played today’s tournament. Come back tomorrow!",
+    "Le token #{n} n’appartient plus à l’administrateur (propriétaire : {o}).": "Token #{n} no longer belongs to the administrator (owner: {o}).",
+    "Tentatives contre le boss épuisées pour aujourd’hui ({a}/{b}).": "No boss attempts left today ({a}/{b}).",
+    "Transaction pas encore confirmée, réessaie dans quelques secondes.": "Transaction not confirmed yet, try again in a few seconds.",
+    "Failed to fetch": "Failed to fetch",
+    "Serveur injoignable": "Server unreachable",
+    "Règlement des récompenses — NEON BUDDIES — NFT BATTLE ARENA": "Reward rules — NEON BUDDIES — NFT BATTLE ARENA",
+    "← Retour au jeu": "← Back to the game",
+    "Règlement des récompenses NFT": "NFT reward rules",
+    "NEON BUDDIES — NFT BATTLE ARENA · version 1 · Collection Neon Buddies 2 (Robinhood Chain, contrat <code class=\"contract\">0x3aFaFa532c6Ea72ad5533A5aeEb409276ACC0aFc</code>)": "NEON BUDDIES — NFT BATTLE ARENA · version 1 · Neon Buddies 2 collection (Robinhood Chain, contract <code class=\"contract\">0x3aFaFa532c6Ea72ad5533A5aeEb409276ACC0aFc</code>)",
+    "1. Principe": "1. Principle",
+    "Le jeu est <b>gratuit</b>. <b>Aucun achat, aucun paiement et aucune mise</b> ne sont nécessaires pour jouer ni pour obtenir une récompense.": "The game is <b>free</b>. <b>No purchase, payment or stake</b> is required to play or to get a reward.",
+    "Les récompenses sont attribuées selon les <b>résultats en jeu</b> (habileté et régularité : choix des combattants, progression des personnages, séries de victoires), jamais par tirage au sort payant.": "Rewards are granted based on <b>in-game results</b> (skill and consistency: fighter choice, character progression, win streaks), never through a paid draw.",
+    "Les récompenses sont des NFT de la collection Neon Buddies 2 détenus par l’organisateur et envoyés <b>manuellement</b> après vérification.": "Rewards are Neon Buddies 2 NFTs held by the organizer and sent <b>manually</b> after verification.",
+    "Aucune valeur financière n’est promise. Un NFT n’est pas un placement.": "No financial value is promised. An NFT is not an investment.",
+    "2. Participation": "2. Participation",
+    "Les combats classés nécessitent un wallet compatible (MetaMask ou équivalent) et une connexion par signature d’un message. Cette signature ne déclenche aucune transaction, ne coûte aucun frais et ne donne aucune autorisation sur tes NFT.": "Ranked fights require a compatible wallet (MetaMask or similar) and signing in by signing a message. This signature triggers no transaction, costs no fees and grants no permission over your NFTs.",
+    "Une seule participation par personne. L’utilisation de plusieurs wallets, de robots, de scripts ou de toute manipulation peut entraîner le refus des récompenses.": "One participation per person. Using several wallets, bots, scripts or any manipulation may lead to rewards being refused.",
+    "Seuls les 100 personnages officiels comptent pour le classement ; les NFT ajoutés par les joueurs restent en mode local.": "Only the 100 official characters count for the leaderboard; NFTs added by players stay in local mode.",
+    "3. Récompenses disponibles": "3. Available rewards",
+    "Condition (combats classés)": "Condition (ranked fights)",
+    "Attribué par l’organisateur (ex. meilleur joueur d’une saison), annoncé à l’avance": "Granted by the organizer (e.g. best player of a season), announced in advance",
+    "Chaque récompense ne peut être obtenue et réclamée qu’<b>une seule fois</b> par joueur.": "Each reward can be earned and claimed <b>only once</b> per player.",
+    "Le stock est <b>limité</b> : un NFT précis de la rareté de jeu correspondante est réservé au moment de la réclamation, dans la limite des disponibilités.": "Stock is <b>limited</b>: a specific NFT of the matching game rarity is reserved when you claim, while supplies last.",
+    "Les points classés sont plafonnés à 3 000 par jour (hors missions) et les combats sont limités en fréquence.": "Ranked points are capped at 3,000 per day (excluding missions) and fight frequency is limited.",
+    "La « rareté de jeu » des personnages est une classification propre à l’arène ; sur la blockchain, les traits Neon Buddies 2 ont tous la même fréquence.": "The characters’ “game rarity” is a classification specific to the arena; on-chain, all Neon Buddies 2 traits have the same frequency.",
+    "4. Réclamation et envoi": "4. Claim and delivery",
+    "Une fois la condition remplie, le bouton « Réclamer le NFT » apparaît dans l’onglet Récompenses.": "Once the condition is met, the “Claim the NFT” button appears in the Rewards tab.",
+    "L’organisateur vérifie la demande (régularité des combats, absence de triche) et l’accepte ou la refuse.": "The organizer reviews the request (fair fights, no cheating) and accepts or rejects it.",
+    "En cas d’acceptation, l’organisateur envoie lui-même le NFT depuis son wallet vers l’adresse connectée. La transaction est visible sur <a href=\"https://robinhoodchain.blockscout.com\" target=\"_blank\" rel=\"noopener\">robinhoodchain.blockscout.com</a>.": "If accepted, the organizer personally sends the NFT from their wallet to the connected address. The transaction is visible on <a href=\"https://robinhoodchain.blockscout.com\" target=\"_blank\" rel=\"noopener\">robinhoodchain.blockscout.com</a>.",
+    "Les frais de réseau de l’envoi sont pris en charge par l’organisateur. Le joueur n’a rien à payer.": "Network fees for the transfer are paid by the organizer. The player pays nothing.",
+    "5. Données": "5. Data",
+    "Le serveur enregistre uniquement l’adresse publique du wallet, un pseudo facultatif, les résultats de combats classés et l’état des récompenses.": "The server only stores the public wallet address, an optional nickname, ranked fight results and reward status.",
+    "Aucune clé privée, aucune phrase de récupération n’est jamais demandée. Toute demande de ce type est une arnaque.": "No private key or recovery phrase is ever requested. Any such request is a scam.",
+    "La progression hors ligne reste dans ton navigateur (localStorage).": "Offline progress stays in your browser (localStorage).",
+    "6. Modes de jeu": "6. Game modes",
+    "Les points classés peuvent être gagnés en duel, en solo contre des bots (points multipliés selon la difficulté), en PvP en ligne (file d’attente interrogée par le jeu, pas en temps réel), en tournoi (une fois par jour, contre des fantômes et des bots, points selon le classement) et contre le boss du jour (tentatives limitées par jour).": "Ranked points can be earned in duels, solo against bots (points multiplied by difficulty), online PvP (a queue the game polls, not real time), tournaments (once a day, against ghosts and bots, points by placement) and against the boss of the day (limited attempts per day).",
+    "Sur Android, ouvre l’adresse HTTPS publique du jeu dans l’application MetaMask, pas une adresse localhost. Choisis Robinhood Chain (identifiant 4663) puis signe le message.": "On Android, open the game’s public HTTPS address in the MetaMask app, not a localhost address. Choose Robinhood Chain (id 4663), then sign the message.",
+    "Tant que le serveur est hors ligne, ou tant que les réclamations réelles sont désactivées, aucun NFT n’est réservé ni envoyé. Le jeu local ne prépare aucune transaction.": "While the server is offline, or while real claims are disabled, no NFT is reserved or sent. The local game prepares no transaction.",
+    "Tous les combats classés sont calculés par le serveur ; les mêmes limites quotidiennes et le même plafond de points s’appliquent à tous les modes.": "All ranked fights are computed by the server; the same daily limits and points cap apply to every mode.",
+    "Le classement ELO du PvP est indépendant des points et ne donne pas droit à lui seul à une récompense.": "The PvP ELO ranking is separate from points and does not, on its own, entitle you to a reward.",
+    "7. Divers": "7. Miscellaneous",
+    "L’organisateur peut suspendre, modifier ou arrêter le programme de récompenses ; les récompenses déjà validées restent dues.": "The organizer may suspend, change or end the rewards program; rewards already approved remain due.",
+    "En cas de bug ou d’abus manifeste, les résultats concernés peuvent être annulés.": "In case of a bug or obvious abuse, the affected results may be cancelled.",
+    "Il appartient à chaque participant de vérifier que la réception d’un NFT est autorisée dans son pays. Réservé aux personnes majeures.": "Each participant must check that receiving an NFT is allowed in their country. Adults only.",
+    "Contact : <a href=\"https://x.com/BusinessGry\" target=\"_blank\" rel=\"noopener\">X @BusinessGry</a> · Site : <a href=\"https://neon-buddies-2.netlify.app/\" target=\"_blank\" rel=\"noopener\">neon-buddies-2.netlify.app</a>": "Contact: <a href=\"https://x.com/BusinessGry\" target=\"_blank\" rel=\"noopener\">X @BusinessGry</a> · Website: <a href=\"https://neon-buddies-2.netlify.app/\" target=\"_blank\" rel=\"noopener\">neon-buddies-2.netlify.app</a>",
+    "Ce règlement est un modèle fourni avec le jeu ; il ne constitue pas un avis juridique.": "These rules are a template provided with the game; they do not constitute legal advice."
+  };
+  /*DICT-END*/
+  var KEY = 'nb-lang';
+  var ATTRS = ['placeholder', 'aria-label', 'title', 'alt', 'data-label'];
+  var lang = 'fr';
+  try { lang = localStorage.getItem(KEY) || ''; } catch (e) { lang = ''; }
+  if (lang !== 'fr' && lang !== 'en') lang = /^fr/i.test((root.navigator && (navigator.language || (navigator.languages || [])[0])) || '') ? 'fr' : 'en';
+
+  // Modèles {x} → expressions régulières (les plus longs d'abord)
+  var patterns = Object.keys(EN).filter(function (k) { return k.indexOf('{') >= 0; }).sort(function (a, b) { return b.length - a.length; }).map(function (k) {
+    var names = [];
+    var re = k.replace(/[.*+?^$()|[\]\\]/g, '\\$&').replace(/\{(\w+)\}/g, function (_, n) { names.push(n); return '([\\s\\S]+?)'; });
+    return { key: k, re: new RegExp('^' + re + '$'), names: names };
+  });
+  // Déjà en anglais (valeur du dictionnaire) ou nom propre de NFT : rien à traduire.
+  var ENV = {}; Object.keys(EN).forEach(function (k) { ENV[EN[k]] = 1; });
+  function isData(x) { return ENV[x] === 1 || /^Neon Buddies #\d+( ↗)?$/.test(x); }
+  function fill(tpl, vars) { return String(tpl).replace(/\{(\w+)\}/g, function (m, n) { return vars && vars[n] != null ? vars[n] : m; }); }
+  /** Traduit un texte français (exact ou par modèle). Renvoie null si inconnu. */
+  function lookup(fr) {
+    if (Object.prototype.hasOwnProperty.call(EN, fr)) return EN[fr];
+    for (var i = 0; i < patterns.length; i++) {
+      var m = patterns[i].re.exec(fr);
+      if (m) {
+        var vars = {};
+        patterns[i].names.forEach(function (n, j) { var v = m[j + 1]; var tv = lookup(v); vars[n] = tv != null ? tv : v; });
+        return fill(EN[patterns[i].key], vars);
+      }
+    }
+    return null;
+  }
+  /** t('texte français', {vars}) : renvoie la traduction dans la langue active. */
+  function t(fr, vars) {
+    var s = fr;
+    if (lang === 'en') { var tr = lookup(fr); if (tr != null) s = tr; else if (root.NB_I18N_DEBUG) console.warn('[i18n] manquant :', fr); }
+    return fill(s, vars);
+  }
+  /** Traduit un texte libre en conservant les espaces autour. */
+  function tx(text) {
+    if (lang !== 'en' || text == null) return text;
+    var str = String(text), m = /^(\s*)([\s\S]*?)(\s*)$/.exec(str);
+    if (!m[2] || !/[A-Za-zÀ-ÿ]/.test(m[2]) || /^0x[0-9a-fA-F…]+$/.test(m[2])) return str;
+    var tr = lookup(m[2]);
+    if (tr == null && root.NB_I18N_DEBUG && !isData(m[2])) (root.NB_I18N_MISSING = root.NB_I18N_MISSING || {})[m[2]] = 1;
+    return tr == null ? str : m[1] + tr + m[3];
+  }
+
+  /* ---------- Traduction du DOM ---------- */
+  var origText = new WeakMap(), lastText = new WeakMap(), origAttr = new WeakMap(), lastAttr = new WeakMap();
+  function skip(el) { return el && el.closest && el.closest('[translate="no"], script, style, code, .addr, [data-i18n-html]'); }
+  var origHtml = new WeakMap();
+  function doHtml(el) {
+    if (!origHtml.has(el)) origHtml.set(el, el.innerHTML.replace(/\s+/g, ' ').trim());
+    var fr = origHtml.get(el), out = lang === 'en' ? (lookup(fr) != null ? lookup(fr) : (root.NB_I18N_DEBUG && ((root.NB_I18N_MISSING = root.NB_I18N_MISSING || {})[fr] = 1), fr)) : fr;
+    if (el.innerHTML !== out) el.innerHTML = out;
+  }
+  function doText(n) {
+    if (skip(n.parentElement)) return;
+    var cur = n.nodeValue;
+    if (lastText.get(n) !== cur) origText.set(n, cur); // nouveau texte écrit par l'application (en français)
+    var src = origText.get(n), out = lang === 'en' ? tx(src) : src;
+    lastText.set(n, out);
+    if (out !== cur) n.nodeValue = out;
+  }
+  function doAttrs(el) {
+    if (skip(el)) return;
+    var o = origAttr.get(el) || {}, l = lastAttr.get(el) || {};
+    ATTRS.forEach(function (a) {
+      if (!el.hasAttribute(a)) return;
+      var cur = el.getAttribute(a);
+      if (l[a] !== cur) o[a] = cur;
+      var out = lang === 'en' ? tx(o[a]) : o[a];
+      l[a] = out;
+      if (out !== cur) el.setAttribute(a, out);
+    });
+    origAttr.set(el, o); lastAttr.set(el, l);
+  }
+  function translate(node) {
+    if (!node) return;
+    if (node.nodeType === 3) return doText(node);
+    if (node.nodeType !== 1 && node.nodeType !== 9) return;
+    if (node.nodeType === 1) doAttrs(node);
+    if (node.nodeType === 1 && node.hasAttribute('data-i18n-html')) return doHtml(node);
+    if (node.querySelectorAll) node.querySelectorAll('[data-i18n-html]').forEach(doHtml);
+    var w = document.createTreeWalker(node, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null);
+    var n; while ((n = w.nextNode())) { if (n.nodeType === 3) doText(n); else doAttrs(n); }
+  }
+  var observer = null;
+  function observe() {
+    if (observer || !root.MutationObserver) return;
+    observer = new MutationObserver(function (list) {
+      observer.disconnect();
+      list.forEach(function (m) {
+        if (m.type === 'characterData') doText(m.target);
+        else if (m.type === 'attributes') doAttrs(m.target);
+        else m.addedNodes.forEach(translate);
+      });
+      start();
+    });
+    start();
+  }
+  function start() { observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ATTRS }); }
+
+  var listeners = [];
+  function applyLang() {
+    document.documentElement.setAttribute('lang', lang);
+    var title = document.querySelector('title'); if (title) { if (!title.__fr) title.__fr = title.textContent; title.textContent = lang === 'en' ? tx(title.__fr) : title.__fr; }
+    var md = document.querySelector('meta[name="description"]');
+    if (md) { if (!md.__fr) md.__fr = md.getAttribute('content'); md.setAttribute('content', lang === 'en' ? tx(md.__fr) : md.__fr); }
+    if (observer) observer.disconnect();
+    translate(document.body);
+    if (observer) start();
+    document.querySelectorAll('[data-lang]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-lang') === lang); b.setAttribute('aria-pressed', b.getAttribute('data-lang') === lang ? 'true' : 'false'); });
+  }
+  function setLang(l) {
+    if (l !== 'fr' && l !== 'en') return;
+    lang = l;
+    try { localStorage.setItem(KEY, l); } catch (e) { /* stockage indisponible */ }
+    applyLang();
+    listeners.forEach(function (f) { try { f(lang); } catch (e) { /* ignore */ } });
+  }
+  function init() {
+    applyLang(); observe();
+    document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-lang]'); if (b) setLang(b.getAttribute('data-lang')); });
+  }
+  root.NBI18n = {
+    t: t, tx: tx, lookup: lookup, translate: translate, setLang: setLang, onChange: function (f) { listeners.push(f); },
+    get lang() { return lang; }, locale: function () { return lang === 'en' ? 'en-US' : 'fr-FR'; }, init: init, dict: EN
+  };
+  if (typeof document !== 'undefined') {
+    document.documentElement.setAttribute('lang', lang);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+  }
+})(typeof window !== 'undefined' ? window : globalThis);

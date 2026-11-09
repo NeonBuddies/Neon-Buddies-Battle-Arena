@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07020f">
+  <meta name="description" content="NEON BUDDIES — NFT BATTLE ARENA : jeu de combat cyberpunk avec les 100 personnages Neon Buddies 2.">
+  <title>NEON BUDDIES — NFT BATTLE ARENA</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <p id="backend-banner" class="backend-banner" role="status">Serveur de récompenses hors ligne : jeu en mode local uniquement. Aucune réclamation NFT réelle, aucun combat classé envoyé.</p>
+  <header class="topbar">
+    <a href="#accueil" class="brand" aria-label="Accueil Neon Buddies">
+      <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#nb-emblem"/></svg>
+      <span class="brand-text">NEON <b>BUDDIES</b></span>
+    </a>
+    <nav class="nav" aria-label="Navigation principale">
+      <a href="#accueil" data-nav="accueil"><span class="ico">⌂</span><span>Accueil</span></a>
+      <a href="#galerie" data-nav="galerie"><span class="ico">▦</span><span>Galerie</span></a>
+      <a href="#arene" data-nav="arene"><span class="ico">⚔</span><span>Arène</span></a>
+      <a href="#classement" data-nav="classement"><span class="ico">♛</span><span>Classement</span></a>
+      <a href="#recompenses" data-nav="recompenses"><span class="ico">🏆</span><span>Récompenses</span><b class="nav-badge" id="nav-badge" hidden>0</b></a>
+      <a href="#ajouter" data-nav="ajouter"><span class="ico">＋</span><span>Ajouter</span></a>
+      <a href="#profil" data-nav="profil"><span class="ico">◉</span><span>Profil</span></a>
+    </nav>
+    <div class="points-pill" title="Tes points"><span id="hud-points">0</span> pts</div>
+    <div class="lang-toggle" role="group" aria-label="Langue" translate="no"><button type="button" data-lang="fr" lang="fr">FR</button><button type="button" data-lang="en" lang="en">EN</button></div>
+  </header>
+
+  <main id="app">
+    <!-- ACCUEIL -->
+    <section class="view" data-view="accueil" aria-labelledby="home-title">
+      <div class="hero">
+        <div class="logo3d" aria-hidden="true">
+          <svg class="logo-emblem" viewBox="0 0 64 64"><use href="#nb-emblem"/></svg>
+        </div>
+        <h1 id="home-title" class="logo-title">
+          <span class="neon-line l1" data-text="NEON">NEON</span>
+          <span class="neon-line l2" data-text="BUDDIES">BUDDIES</span>
+        </h1>
+        <p class="logo-sub">NFT BATTLE ARENA</p>
+        <p class="hero-text">Choisis ton Neon Buddy, affronte les 100 personnages de la collection, gagne de l’XP et grimpe au classement.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary btn-xl" id="btn-quick">⚡ Combat rapide</button>
+          <a class="btn btn-ghost btn-xl" href="#galerie">Voir la galerie</a>
+        </div>
+        <div class="hero-stats" id="home-stats"></div>
+        <div class="hero-cards" id="home-cards" aria-label="Personnages légendaires"></div>
+      </div>
+    </section>
+
+    <!-- GALERIE -->
+    <section class="view" data-view="galerie" aria-labelledby="gal-title" hidden>
+      <div class="view-head">
+        <h2 id="gal-title">Galerie <small id="gal-count"></small></h2>
+        <div class="toolbar">
+          <input type="search" id="gal-search" class="input" placeholder="Rechercher (nom, n°, famille…)" aria-label="Rechercher">
+          <select id="gal-sort" class="input" aria-label="Trier">
+            <option value="id">Trier : numéro</option>
+            <option value="power">Trier : puissance</option>
+            <option value="level">Trier : niveau</option>
+            <option value="rank">Trier : rang de rareté</option>
+          </select>
+        </div>
+        <div class="chips" id="gal-filters" role="group" aria-label="Filtrer par rareté"></div>
+      </div>
+      <div class="card-grid" id="gal-grid"></div>
+      <p class="empty" id="gal-empty" hidden>Aucun personnage ne correspond.</p>
+    </section>
+
+    <!-- ARENE -->
+    <section class="view" data-view="arene" aria-labelledby="arena-title" hidden>
+      <div id="arena-setup">
+        <div class="view-head"><h2 id="arena-title">Arène</h2>
+          <div class="chips mode-chips" id="mode-chips" role="group" aria-label="Mode de jeu">
+            <button type="button" class="chip" data-mode="duel">⚔ Duel</button>
+            <button type="button" class="chip" data-mode="solo">🤖 Solo vs bots</button>
+            <button type="button" class="chip" data-mode="pvp">🌐 PvP en ligne</button>
+            <button type="button" class="chip" data-mode="tournoi">🏟 Tournoi</button>
+            <button type="button" class="chip" data-mode="boss">👹 Boss</button>
+          </div>
+        </div>
+        <div class="panel mode-panel" id="mode-panel"></div>
+        <div class="versus">
+          <div class="slot" id="slot-A">
+            <p class="slot-label">Ton combattant</p>
+            <div class="slot-card" id="slot-A-card"></div>
+            <div class="slot-actions">
+              <button class="btn btn-small" data-pick="A">Choisir</button>
+              <button class="btn btn-small btn-ghost" data-random="A">🎲 Aléatoire</button>
+            </div>
+          </div>
+          <div class="vs-badge" aria-hidden="true">VS</div>
+          <div class="slot" id="slot-B">
+            <p class="slot-label" id="slot-B-label">Adversaire</p>
+            <div class="slot-card" id="slot-B-card"></div>
+            <div class="slot-actions" id="slot-B-actions">
+              <button class="btn btn-small" data-pick="B">Choisir</button>
+              <button class="btn btn-small btn-ghost" data-random="B">🎲 Aléatoire</button>
+            </div>
+          </div>
+        </div>
+        <label class="toggle ranked-toggle" id="ranked-wrap" hidden><input type="checkbox" id="opt-ranked" checked> <span>Combat classé (serveur) — points, missions et récompenses NFT</span></label>
+        <div class="center"><button class="btn btn-primary btn-xl" id="btn-fight">⚔ Lancer le combat</button></div>
+        <div class="panel pvp-wait" id="pvp-wait" hidden aria-live="polite"></div>
+        <p class="hint">Le combat est automatique : vitesse, attaque, défense et coups critiques décident du vainqueur. Toutes les 3 actions, ton personnage lance son attaque spéciale.</p>
+      </div>
+
+      <div id="arena-fight" hidden>
+        <div class="fight-hud">
+          <div class="hud-side" id="hud-A"></div>
+          <div class="hud-mid"><span id="turn-label">Tour 0</span></div>
+          <div class="hud-side right" id="hud-B"></div>
+        </div>
+        <div class="stage" id="stage">
+          <div class="stage-floor" aria-hidden="true"></div>
+          <div class="fighter left" id="fighter-A"></div>
+          <div class="fighter right" id="fighter-B"></div>
+          <div class="fx-layer" id="fx-layer" aria-hidden="true"></div>
+          <div class="announce" id="announce" aria-live="polite"></div>
+        </div>
+        <div class="fight-controls">
+          <div class="chips" role="group" aria-label="Vitesse">
+            <button class="chip" data-speed="1">x1</button>
+            <button class="chip" data-speed="2">x2</button>
+            <button class="chip" data-speed="4">x4</button>
+          </div>
+          <button class="btn btn-small btn-ghost" id="btn-skip">Passer ⏭</button>
+        </div>
+        <ol class="battle-log" id="battle-log" aria-live="polite"></ol>
+      </div>
+    </section>
+
+    <!-- CLASSEMENT -->
+    <section class="view" data-view="classement" aria-labelledby="lb-title" hidden>
+      <div class="view-head">
+        <h2 id="lb-title">Classement</h2>
+        <div class="chips" id="lb-filters" role="group" aria-label="Filtrer par rareté"></div>
+      </div>
+      <div class="podium" id="lb-podium"></div>
+      <div class="lb-table-wrap">
+        <table class="lb-table">
+          <thead><tr><th>#</th><th>Personnage</th><th>Niv.</th><th>V</th><th>D</th><th class="hide-sm">% V</th><th class="hide-sm">Puissance</th></tr></thead>
+          <tbody id="lb-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+
+    <!-- RÉCOMPENSES -->
+    <section class="view" data-view="recompenses" aria-labelledby="rw-title" hidden>
+      <div class="view-head"><h2 id="rw-title">Récompenses</h2></div>
+      <div class="profile-grid">
+        <div class="panel" id="wallet-panel">
+          <h3>Wallet</h3>
+          <div id="wallet-status" class="wallet-status"></div>
+          <div class="btn-row" id="wallet-actions"></div>
+          <p class="muted small">Connexion par signature d’un message : aucune transaction, aucun frais, aucune autorisation sur tes NFT.</p>
+          <p class="muted small">Sur Android : ouvre ce jeu en HTTPS public dans l’application MetaMask (pas une adresse localhost). Connecte le wallet, signe le message (aucune transaction, aucun frais) et sélectionne Robinhood Chain (identifiant 4663). Le compte fondateur est un smart account EIP-7702 : la signature est vérifiée, l’adresse seule ne suffit pas.</p>
+        </div>
+        <div class="panel">
+          <h3>Missions du jour</h3>
+          <ul class="missions" id="missions"></ul>
+          <p class="muted small" id="missions-note"></p>
+        </div>
+        <div class="panel">
+          <h3>Mes récompenses NFT</h3>
+          <div id="my-rewards"></div>
+          <p class="small"><a href="regles.html">📜 Règlement des récompenses</a></p>
+        </div>
+        <div class="panel">
+          <h3>Classement des joueurs</h3>
+          <ol class="players" id="players-lb"></ol>
+        </div>
+        <div class="panel">
+          <h3>Collection on-chain</h3>
+          <div id="onchain"></div>
+          <form class="btn-row" id="onchain-form">
+            <input class="input" id="onchain-id" type="number" min="1" max="100" value="1" aria-label="Numéro du token" style="width:110px">
+            <button class="btn btn-small" type="submit">Vérifier le propriétaire</button>
+          </form>
+          <p class="muted small">Lecture seule via le RPC public de Robinhood Chain.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADMIN -->
+    <section class="view" data-view="admin" aria-labelledby="ad-title" hidden>
+      <div class="view-head"><h2 id="ad-title">Espace admin</h2></div>
+      <div id="admin-gate" class="panel"></div>
+      <div id="admin-area" hidden>
+        <div class="profile-grid">
+          <div class="panel"><h3>Résumé</h3><div id="admin-summary"></div></div>
+          <div class="panel"><h3>Notifications</h3><ol class="history" id="admin-notes"></ol></div>
+          <div class="panel">
+            <h3>Récompense spéciale</h3>
+            <form id="grant-form" class="add-form">
+              <input class="input" id="grant-address" placeholder="Adresse du joueur 0x…" required>
+              <input class="input" id="grant-label" placeholder="Motif (ex. 1er de la saison)" maxlength="80">
+              <select class="input" id="grant-tier"><option value="Special">Spécial</option><option value="Legendary">Légendaire</option><option value="Epic">Épique</option><option value="Rare">Rare</option><option value="Common">Commun</option></select>
+              <label class="toggle"><input type="checkbox" id="grant-test"> <span>Récompense de TEST (aucun NFT réel)</span></label>
+              <button class="btn btn-small" type="submit">Attribuer</button>
+            </form>
+            <h3 style="margin-top:18px">Mode test d’un joueur</h3>
+            <form id="testmode-form" class="add-form">
+              <input class="input" id="tm-address" placeholder="Adresse 0x… (vide = moi)">
+              <label class="toggle"><input type="checkbox" id="tm-enabled" checked> <span>Activer le mode test</span></label>
+              <button class="btn btn-small" type="submit">Appliquer</button>
+            </form>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:16px">
+          <h3>Demandes de NFT</h3>
+          <div class="chips" id="admin-filters"></div>
+          <div id="admin-list" class="claims"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AJOUTER -->
+    <section class="view" data-view="ajouter" aria-labelledby="add-title" hidden>
+      <div class="view-head"><h2 id="add-title">Ajouter mon NFT</h2></div>
+      <div class="add-layout">
+        <form class="panel add-form" id="add-form" novalidate>
+          <label class="drop" id="drop">
+            <input type="file" id="add-file" accept="image/*">
+            <img id="add-preview" alt="Aperçu" hidden>
+            <span id="drop-text">📁 Choisis ou dépose une image<br><small>JPG, PNG, WEBP, GIF — redimensionnée automatiquement</small></span>
+          </label>
+          <label class="field">Nom
+            <input class="input" id="add-name" maxlength="40" placeholder="Ex. Mon Buddy Cosmique" required>
+          </label>
+          <label class="field">Rareté
+            <select class="input" id="add-rarity"></select>
+          </label>
+          <label class="field">Famille (bonus de stats)
+            <select class="input" id="add-family"></select>
+          </label>
+          <div class="stat-preview" id="add-stats"></div>
+          <p class="form-msg" id="add-msg" role="status"></p>
+          <button class="btn btn-primary" type="submit" id="add-submit">Ajouter à ma collection</button>
+        </form>
+        <div class="panel">
+          <h3>Mes NFT ajoutés</h3>
+          <div class="card-grid small" id="custom-grid"></div>
+          <p class="empty" id="custom-empty">Aucun NFT ajouté pour l’instant.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PROFIL -->
+    <section class="view" data-view="profil" aria-labelledby="pf-title" hidden>
+      <div class="view-head"><h2 id="pf-title">Profil &amp; sauvegarde</h2></div>
+      <div class="profile-grid">
+        <div class="panel" id="pf-stats"></div>
+        <div class="panel">
+          <h3>Derniers combats</h3>
+          <ol class="history" id="pf-history"></ol>
+        </div>
+        <div class="panel">
+          <h3>Réglages</h3>
+          <label class="toggle"><input type="checkbox" id="opt-sound"> <span>Effets sonores</span></label>
+          <h3>Sauvegarde</h3>
+          <p class="muted">Ta progression est enregistrée automatiquement dans ce navigateur (localStorage).</p>
+          <div class="btn-row">
+            <button class="btn btn-small" id="btn-export">Exporter</button>
+            <label class="btn btn-small">Importer<input type="file" id="import-file" accept="application/json,.json" hidden></label>
+            <button class="btn btn-small btn-danger" id="btn-reset">Réinitialiser</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h3>Collection</h3>
+          <p class="muted">Neon Buddies 2 — Robinhood Chain<br><code class="contract">0x3aFaFa532c6Ea72ad5533A5aeEb409276ACC0aFc</code></p>
+          <div class="btn-row">
+            <a class="btn btn-small btn-ghost" href="https://neon-buddies-2.netlify.app/" target="_blank" rel="noopener">Site officiel</a>
+            <a class="btn btn-small btn-ghost" href="https://x.com/BusinessGry" target="_blank" rel="noopener">X @BusinessGry</a>
+          </div>
+          <p class="muted small">Jeu gratuit, sans achat. Le wallet est facultatif (récompenses uniquement).</p>
+          <p class="small"><a href="regles.html">📜 Règlement des récompenses</a></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Fenêtres -->
+  <div class="modal" id="modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <button class="modal-close" data-close aria-label="Fermer">✕</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <div class="result" id="result" hidden>
+    <div class="result-box" id="result-box"></div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="nbg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ff2bd6"/><stop offset="1" stop-color="#8b5cff"/>
+      </linearGradient>
+      <symbol id="nb-emblem" viewBox="0 0 64 64">
+        <path d="M32 3 57 17.5v29L32 61 7 46.5v-29Z" fill="#0b0418" stroke="url(#nbg)" stroke-width="3"/>
+        <path d="M32 10 51 21v22L32 54 13 43V21Z" fill="none" stroke="#ff2bd6" stroke-opacity=".35" stroke-width="1"/>
+        <line x1="32" y1="14" x2="32" y2="20" stroke="#ff2bd6" stroke-width="2.5" stroke-linecap="round"/>
+        <circle cx="32" cy="12.5" r="2.6" fill="#ff2bd6"/>
+        <rect x="17" y="20" width="30" height="24" rx="10" fill="#160a2c" stroke="url(#nbg)" stroke-width="2.5"/>
+        <circle cx="25.5" cy="31" r="4" fill="#ff5ce5"/>
+        <circle cx="38.5" cy="31" r="4" fill="#a97bff"/>
+        <path d="M26 38.5q6 4 12 0" stroke="#ff2bd6" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+        <rect x="13" y="27" width="4" height="9" rx="2" fill="#8b5cff"/>
+        <rect x="47" y="27" width="4" height="9" rx="2" fill="#ff2bd6"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <script src="js/i18n.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/collection.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/web3.js"></script>
+  <script src="js/ui.js"></script>
+</body>
+</html>
