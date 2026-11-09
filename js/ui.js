@@ -231,6 +231,40 @@
       if (online) W.api('/api/boss').then(function (d) { var b = $('#boss-left'); if (b) b.textContent = 'Tentatives restantes aujourd’hui : ' + d.attemptsLeft + ' / ' + d.attemptsMax; }).catch(function () {});
     }
   }
+  function starterOffer(anchor) {
+    var ids = chars().filter(function (c) { return !c.custom; }).map(function (c) { return c.id; });
+    var h = E.hash(String(anchor || 'starter'));
+    var out = [];
+    if (anchor && ids.indexOf(anchor) >= 0) out.push(anchor);
+    var i = 0;
+    while (out.length < 3 && i < 500) {
+      var id = ids[(h + i * 17) % ids.length];
+      if (out.indexOf(id) < 0) out.push(id);
+      i++;
+    }
+    return out;
+  }
+  function renderStarters() {
+    var box = $('#starter-box');
+    if (!box) return;
+    function paint(offer, chosen) {
+      if (!offer || offer.length < 3 || chosen) { box.hidden = true; box.innerHTML = ''; return; }
+      box.hidden = false;
+      box.innerHTML = '<p class="small">Choix en jeu, pas un NFT offert ni transféré. Les 100 restent dans la galerie.</p><div class="btn-row">' +
+        offer.map(function (id) { var ch = byId(id); return '<button type="button" class="btn btn-small" data-starter="' + esc(id) + '"><span translate="no">' + esc(ch ? ch.name : id) + '</span></button>'; }).join('') + '</div>';
+    }
+    if (sessionOk()) {
+      W.api('/api/starter').then(function (d) { paint(d.offer, d.chosen); }).catch(function () { box.hidden = true; });
+      return;
+    }
+    if (!save.starter) {
+      var anchor = save.profile.battles > 0 && save.settings.lastA ? save.settings.lastA : null;
+      save.starter = { offer: starterOffer(anchor || ('local-' + (save.settings.lastA || 'new'))), chosen: anchor && starterOffer(anchor).indexOf(anchor) >= 0 ? anchor : null };
+      if (!save.starter.chosen && anchor) save.starter.chosen = anchor;
+      persist();
+    }
+    paint(save.starter.offer, save.starter.chosen);
+  }
   function renderArenaSetup() {
     if (ui.battle) return;
     ensureSel();
@@ -243,6 +277,7 @@
     $('#ranked-wrap').hidden = !sessionOk() || m === 'pvp';
     $('#btn-fight').textContent = { duel: '⚔ Lancer le combat', solo: '🤖 Affronter le bot', pvp: '🌐 Chercher un adversaire', tournoi: '🏟 Lancer le tournoi', boss: '👹 Affronter le boss' }[m];
     renderModePanel();
+    renderStarters();
   }
 
   /* ---------- Arène : combat ---------- */
@@ -1151,6 +1186,13 @@
       if (rnd) { var sd = rnd.getAttribute('data-random'); setSel(sd, randomChar(ui.sel[sd === 'A' ? 'B' : 'A']).id); renderArenaSetup(); A.click(); return; }
       var md = t.closest('[data-mode]');
       if (md) { stopPvp(false); save.settings.mode = md.getAttribute('data-mode'); persist(); $('#pvp-wait').hidden = true; renderArenaSetup(); A.click(); return; }
+      var stBtn = t.closest('[data-starter]');
+      if (stBtn) {
+        var sid = stBtn.getAttribute('data-starter');
+        if (sessionOk()) W.api('/api/starter', { method: 'POST', body: { id: sid } }).then(function () { renderStarters(); toast('Départ choisi. Ce n’est pas un NFT offert.'); }).catch(function (e) { toast(errMsg(e)); });
+        else if (save.starter && save.starter.offer.indexOf(sid) >= 0 && !save.starter.chosen) { save.starter.chosen = sid; persist(); renderStarters(); toast('Départ choisi. Ce n’est pas un NFT offert.'); }
+        return;
+      }
       var df = t.closest('[data-diff]');
       if (df) { save.settings.difficulty = df.getAttribute('data-diff'); persist(); renderModePanel(); A.click(); return; }
       var pv = t.closest('[data-pvp]');

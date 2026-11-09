@@ -161,6 +161,8 @@
     "PvP interactif : pas encore disponible. Le serveur ne joue pas un combat automatique à ta place. Affronte un bot en solo pour t’entraîner.": "Interactive PvP is not available yet. The server does not play an automatic fight for you. Fight a bot in solo to practice.",
     "Tournoi interactif : pas encore disponible. Aucun tableau n’est résolu automatiquement à ta place.": "Interactive tournament is not available yet. No bracket is resolved automatically for you.",
     "Défi classé : 3 tentatives pour la série, victoire ou défaite. Pas de remise à zéro calendaire. Une nouvelle série seulement après l’élimination, l’historique reste. Hors ligne, l’entraînement est illimité.": "Ranked challenge: 3 attempts for the run, win or loss. No calendar reset. A new run only after elimination, and history stays. Offline practice is unlimited.",
+    "Choix en jeu, pas un NFT offert ni transféré. Les 100 restent dans la galerie.": "In-game choice, not an NFT gift or transfer. All 100 stay in the gallery.",
+    "Départ choisi. Ce n’est pas un NFT offert.": "Starter chosen. This is not an NFT gift.",
     "PvP interactif : pas encore disponible. Aucun combat automatique n’est disputé à ta place.": "Interactive PvP is not available yet. No automatic fight is played for you.",
     "Temps de recharge pas encore écoulé.": "Cooldown is not over yet.",
     "Actions insuffisantes : pas de victoire ni de points.": "Not enough actions: no win and no points.",

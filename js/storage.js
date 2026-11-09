@@ -13,7 +13,8 @@
       history: [],
       missions: { day: '', progress: {}, done: {} },
       settings: { sound: true, speed: 1, lastA: '', mode: 'duel', difficulty: 'normal' },
-      local: { bossDay: '', bossUsed: 0, tourDay: '' } // limites quotidiennes du mode hors ligne
+      local: { bossDay: '', bossUsed: 0, tourDay: '' }, // limites quotidiennes du mode hors ligne
+      starter: null
     };
   }
 
@@ -61,6 +62,10 @@
       d.settings.lastA = typeof data.settings.lastA === 'string' ? data.settings.lastA.slice(0, 40) : '';
       d.settings.mode = ['duel', 'solo', 'pvp', 'tournoi', 'boss'].indexOf(data.settings.mode) >= 0 ? data.settings.mode : 'duel';
       d.settings.difficulty = ['facile', 'normal', 'difficile', 'cauchemar'].indexOf(data.settings.difficulty) >= 0 ? data.settings.difficulty : 'normal';
+    }
+    if (data.starter && typeof data.starter === 'object' && Array.isArray(data.starter.offer)) {
+      var offer = data.starter.offer.map(function (id) { return String(id).slice(0, 8); }).filter(function (id, i, a) { return /^\d{4}$/.test(id) && a.indexOf(id) === i; }).slice(0, 3);
+      if (offer.length === 3) d.starter = { offer: offer, chosen: /^\d{4}$/.test(String(data.starter.chosen || '')) && offer.indexOf(String(data.starter.chosen)) >= 0 ? String(data.starter.chosen) : null };
     }
     if (data.local && typeof data.local === 'object') {
       d.local.bossDay = String(data.local.bossDay || '').slice(0, 10);
