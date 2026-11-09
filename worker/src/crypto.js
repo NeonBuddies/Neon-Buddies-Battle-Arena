@@ -1,5 +1,6 @@
-/* Outils cryptographiques : signature personal_sign (EIP-191), adresses, encodage ABI minimal. */
-import { secp256k1 } from '@noble/curves/secp256k1';
+/* Outils cryptographiques légers (keccak, ABI). La courbe secp256k1 est chargée à part,
+   seulement au moment d'une vérification de signature, pour ne pas payer son initialisation
+   sur les combats. */
 import { keccak_256 } from '@noble/hashes/sha3';
 import { bytesToHex, hexToBytes, utf8ToBytes, concatBytes } from '@noble/hashes/utils';
 
@@ -11,21 +12,6 @@ export function lower(a) { return String(a).toLowerCase(); }
 export function hashPersonalMessage(message) {
   const m = utf8ToBytes(message);
   return keccak_256(concatBytes(utf8ToBytes('\x19Ethereum Signed Message:\n' + m.length), m));
-}
-
-/** Retrouve l'adresse qui a signé (ECDSA). Renvoie null si la signature est invalide. */
-export function recoverAddress(message, signature) {
-  try {
-    const sig = String(signature).replace(/^0x/, '');
-    if (!/^[0-9a-fA-F]{130}$/.test(sig)) return null;
-    let v = parseInt(sig.slice(128, 130), 16);
-    if (v >= 27) v -= 27;
-    if (v !== 0 && v !== 1) return null;
-    const s = secp256k1.Signature.fromCompact(sig.slice(0, 128)).addRecoveryBit(v);
-    if (s.hasHighS()) return null; // signatures malléables refusées
-    const pub = s.recoverPublicKey(hashPersonalMessage(message)).toRawBytes(false);
-    return '0x' + bytesToHex(keccak_256(pub.slice(1)).slice(-20));
-  } catch (e) { return null; }
 }
 
 export function pad32(hexNoPrefix) { return hexNoPrefix.replace(/^0x/, '').toLowerCase().padStart(64, '0'); }

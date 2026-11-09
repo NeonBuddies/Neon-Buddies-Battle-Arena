@@ -71,7 +71,15 @@ Secrets à poser **hors git** (`npx wrangler secret put`), sans les écrire dans
 - `TELEGRAM_ADMIN_CHAT_ID`
 - `TELEGRAM_WEBHOOK_SECRET`
 
-`ALLOWED_ORIGINS` contient `https://neonbuddies.github.io`. `PUBLIC_SITE_URL` est l’URL Pages ci-dessus. Ne pas activer de plan payant. La vérification de signature secp256k1 reste en JavaScript (`@noble/curves`) : WebCrypto de ce runtime n’a pas secp256k1. Un bench local donne environ 1,4 ms (médiane) et 2,4 ms (p95) après échauffement. La limite CPU gratuite des Workers est 10 ms ; un dépassement **coupe la requête** (connexion refusée), il ne saute pas la vérification. À mesurer avec `worker/scripts/auth-smoke.mjs` une fois le Worker réellement en ligne (EOA jetable, aucune transaction).
+`ALLOWED_ORIGINS` contient `https://neonbuddies.github.io`. `PUBLIC_SITE_URL` est l’URL Pages ci-dessus. `js/config.js` pointe déjà vers `https://neon-buddies-arena-api.neon-buddies-crypto-factory.workers.dev`. Ne pas activer de plan payant.
+
+### CPU (offre gratuite, 10 ms)
+
+Mesure Cloudflare déjà faite sur le Worker déployé (37 requêtes, 0 erreur) : médiane 3,6 ms, p90 16,3 ms, max 85 ms. Connexion ~16 ms (premier appel 64–85), combat 17–18, boss 14, tournoi 16, rejoindre le PvP 25. Les temps mur (lecture 120–550 ms, connexion 0,8 s, combat 1,4 s, PvP 2,6 s) ne sont pas du CPU.
+
+Contrôle local (Node, `performance.now`, **pas** le compteur Cloudflare) : un combat ~0,02 ms, un tournoi de 7 matchs ~0,09 ms, un boss ~0,03 ms, une récupération ECDSA déjà chaude ~1,6 ms, le **premier** chargement de secp256k1 ~17 ms. Le simulateur n’explique donc pas 14–18 ms de CPU en production : ces routes se ressemblent alors qu’elles ne font pas le même nombre de combats. Le coût suit les allers-retours D1 et l’initialisation de la courbe.
+
+Cette version réduit les lectures (un `UPDATE … RETURNING` au lieu de relire le joueur, une requête pour les XP, plus de second chargement, récompenses insérées en lot) et ne charge secp256k1 qu’à la vérification de signature. La vérification elle-même (low-s, EIP-191, ERC-1271 si le compte a du code), le nonce à usage unique, le verrou de combat et la transaction unique stats+journal sont inchangés. Il faut **remesurer le CPU Cloudflare** après redéploiement : un bench local ne prouve pas qu’on passe sous 10 ms. WebCrypto n’a pas secp256k1 ; la récupération reste en JavaScript.
 
 ## Tester en local
 
