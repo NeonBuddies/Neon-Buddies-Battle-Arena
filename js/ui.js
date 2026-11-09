@@ -389,6 +389,17 @@
   function localLoop() {
     var bt = ui.battle;
     if (!bt || !bt.manual || bt.ranked || bt.done) return;
+    if (bt.quick) {
+      var fastNow = bt.quickNow || Date.now(), fast = bt.state;
+      for (var i = 0; i < 1000 && fast.status === 'active'; i++) {
+        fastNow += 1000;
+        fast = E.manualTick(fast, fastNow);
+        fast._testNow = fastNow;
+      }
+      bt.quickNow = fastNow; bt.state = fast; bt.view = E.manualView(fast, fastNow); paintManual();
+      if (fast.status === 'active') { bt.timer = setTimeout(localLoop, 0); return; }
+      return commitManual(bt, null);
+    }
     var now = bt.quick ? (bt.quickNow += 500) : manualNow(bt.state);
     var ticked = E.manualTick(bt.state, now);
     ticked._testNow = bt.state._testNow;
@@ -986,9 +997,10 @@
       var pass = '<div class="m-top"><span>Battle Pass · niveau ' + level + '/' + d.pass.levels + '</span><b>' + (d.pass.progress.xp || 0) + ' XP</b></div><div class="bar"><i style="width:' + pct.toFixed(0) + '%"></i></div><p class="muted small">Saison jusqu’au ' + new Date(d.seasonEnds).toLocaleDateString(L()) + '</p>';
       var weekly = d.weeklyMissions.map(function (m) { var done = m.progress >= m.target; return '<div class="rule"><span>' + esc(m.label) + ' · ' + m.progress + '/' + m.target + '</span>' + (m.claimed ? '<span class="status st-sent">Réclamée</span>' : (done ? '<button class="btn btn-small" data-feature-mission="' + esc(m.id) + '">Réclamer</button>' : '<span class="muted small">En cours</span>')) + '</div>'; }).join('');
       var achievements = d.achievements.length ? d.achievements.map(function (a) { return '<span class="status st-approved">🏆 ' + esc(a.achievement_id) + '</span>'; }).join(' ') : '<span class="muted small">Aucun achievement débloqué.</span>';
-      var inventory = d.inventory && d.inventory.length ? d.inventory.map(function (item) { var fromShop = String(item.source || '').indexOf('shop:') === 0; return '<div class="rule"><span>' + (fromShop ? '🛒 ' : '🎁 ') + esc(item.item_id) + '<small class="muted"> · ' + (fromShop ? 'Achat test · 0 ETH' : esc(item.item_type)) + '</small></span><b>×' + item.quantity + '</b></div>'; }).join('') : '<p class="muted small">Inventaire vide pour le moment.</p>';
+      var inventory = d.inventory && d.inventory.length ? d.inventory.map(function (item) { var fromShop = String(item.source || '').indexOf('shop:') === 0, usable = item.item_type === 'skin' || item.item_type === 'character'; var action = usable ? '<button class="btn btn-small" data-use-item="' + esc(item.item_type) + '" data-use-id="' + esc(item.item_id) + '">' + (item.item_type === 'skin' ? 'Équiper' : 'Ouvrir') + '</button>' : ''; return '<div class="rule"><span>' + (fromShop ? '🛒 ' : '🎁 ') + esc(item.item_id) + '<small class="muted"> · ' + (fromShop ? 'Achat boutique' : esc(item.item_type)) + '</small></span><span><b>×' + item.quantity + '</b> ' + action + '</span></div>'; }).join('') : '<p class="muted small">Inventaire vide pour le moment.</p>';
+      var equipped = d.equippedSkin ? '<p class="muted small">Skin équipé : <b>' + esc(d.equippedSkin) + '</b></p>' : '';
       if (inventoryEl) inventoryEl.innerHTML = inventory;
-      el.innerHTML = '<h3>Progression &amp; récompenses</h3><p><b>' + d.economy.gems + '</b> gems · <b>' + d.economy.materials + '</b> matériaux</p><h4>Calendrier quotidien</h4>' + days + '<h4>Battle Pass gratuit</h4>' + pass + '<h4>Missions hebdomadaires</h4>' + weekly + '<h4>Achievements</h4><p>' + achievements + '</p><p class="muted small">Les achats Premium et les paiements restent désactivés jusqu’à configuration approuvée.</p>';
+      el.innerHTML = '<h3>Progression &amp; récompenses</h3><p><b>' + d.economy.gems + '</b> gems · <b>' + d.economy.materials + '</b> matériaux</p><h4>Calendrier quotidien</h4>' + days + '<h4>Battle Pass gratuit</h4>' + pass + '<h4>Missions hebdomadaires</h4>' + weekly + '<h4>Achievements</h4><p>' + achievements + '</p><p class="muted small">Les achats de gems servent aux évolutions. Les packs se transforment en personnages et les skins sont équipables.</p>' + equipped;
     } catch (e) { el.innerHTML = '<h3>Progression &amp; récompenses</h3><p class="err-txt small">' + esc(errMsg(e)) + '</p>'; if (inventoryEl) inventoryEl.innerHTML = '<p class="err-txt small">Impossible de charger l’inventaire.</p>'; }
   }
   async function renderRewards() {
@@ -1192,6 +1204,15 @@
           if (!receipt || receipt.status !== '0x1') throw new Error('Transaction non confirmée.');
           await W.api('/api/shop/order', { method: 'POST', body: { productId: buy.getAttribute('data-shop-buy'), txHash: txHash } });
           toast('Achat confirmé et ajouté à ton inventaire.');
+        } catch (err) { toast(errMsg(err)); }
+        renderRewards(); return;
+      }
+      var use = e.target.closest('[data-use-item]');
+      if (use) {
+        use.disabled = true;
+        try {
+          var used = await W.api('/api/features/inventory/use', { method: 'POST', body: { itemType: use.getAttribute('data-use-item'), itemId: use.getAttribute('data-use-id') } });
+          toast(used.equipped ? 'Skin équipé.' : (used.unlockedCharacter ? 'Personnage #' + used.unlockedCharacter + ' débloqué.' : 'Article utilisé.'));
         } catch (err) { toast(errMsg(err)); }
         renderRewards(); return;
       }

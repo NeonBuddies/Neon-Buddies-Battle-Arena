@@ -8,7 +8,7 @@ import {
   isAddress, lower, hashPersonalMessage, encodeSafeTransferFrom, encodeOwnerOf, encodeIsValidSignature,
   is1271Magic, addrTopic, uintTopic, TRANSFER_TOPIC, randomHex, sha256Hex
 } from './crypto.js';
-import { claimDaily, claimPass, testPurchase, purchaseProduct, updateProfile, evolveCharacter, registerTournament, recordBattleProgress, claimMission, featureSnapshot, createGuild, inviteGuildMember, decideGuildInvite, guildChat, adminDashboard } from './platform.js';
+import { claimDaily, claimPass, testPurchase, purchaseProduct, useInventoryItem, updateProfile, evolveCharacter, registerTournament, recordBattleProgress, claimMission, featureSnapshot, createGuild, inviteGuildMember, decideGuildInvite, guildChat, adminDashboard } from './platform.js';
 import { SHOP, productById } from './shop.js';
 
 const NONCE_TTL = 5 * 60 * 1000;
@@ -932,6 +932,11 @@ async function route(req, env, ctx) {
     const s = await auth(req, env), b = await body(req);
     try { return await updateProfile(env, s.address, b); }
     catch (e) { throw new HttpError(400, e.message || 'Profil invalide'); }
+  }
+  if (m === 'POST' && path === '/api/features/inventory/use') {
+    const s = await auth(req, env), b = await body(req);
+    try { return await useInventoryItem(env, s.address, b.itemType, b.itemId); }
+    catch (e) { throw new HttpError(400, e.message || 'Article inutilisable'); }
   }
   if (m === 'POST' && path === '/api/features/evolution') {
     const s = await auth(req, env), b = await body(req);

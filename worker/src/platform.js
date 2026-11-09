@@ -169,19 +169,36 @@ async function claimMission(env, address, missionId) {
   await grantItem(env, address, mission.reward, `mission:${week}:${mission.id}`);
   return { claimed: true, duplicate: false, week, missionId, reward: mission.reward };
 }
+async function useInventoryItem(env, address, itemType, itemId) {
+  const type = String(itemType || ''), id = String(itemId || '');
+  const item = await env.DB.prepare('SELECT quantity FROM inventory WHERE address=?1 AND item_type=?2 AND item_id=?3').bind(address, type, id).first();
+  if (!item || item.quantity < 1) throw new Error('Article indisponible');
+  if (type === 'skin') {
+    await env.DB.prepare('UPDATE player_profiles SET equipped_skin=?1,updated_at=?2 WHERE address=?3').bind(id, now(), address).run();
+    return { used: true, type, itemId: id, equipped: id };
+  }
+  if (type === 'character') {
+    const unlock = id === 'character-pack-basic' ? '0001' : id === 'character-pack-plus' ? '0011' : id === 'character-pack-elite' ? '0021' : id;
+    await env.DB.prepare('UPDATE inventory SET quantity=quantity-1,updated_at=?1 WHERE address=?2 AND item_type=?3 AND item_id=?4 AND quantity>0').bind(now(), address, type, id).run();
+    await grantItem(env, address, { type:'character', id:unlock, qty:1, label:`Personnage débloqué #${unlock}` }, `pack-opened:${id}`);
+    return { used: true, type, itemId: id, unlockedCharacter: unlock };
+  }
+  throw new Error('Cet article est une pièce de collection et ne nécessite pas d’activation');
+}
 async function featureSnapshot(env, address) {
   const day = dayKey(), week = weekKey(), season = seasonKey();
-  const [eco, pass, inv, daily, ach, guild, weekly] = await Promise.all([
+  const [eco, pass, inv, daily, ach, guild, weekly, profile] = await Promise.all([
     ensureEconomy(env, address),
     env.DB.prepare('SELECT * FROM battle_pass_progress WHERE address = ?1 AND season = ?2').bind(address, season).first(),
     env.DB.prepare('SELECT item_type,item_id,quantity,source,updated_at FROM inventory WHERE address = ?1 ORDER BY updated_at DESC').bind(address).all(),
     env.DB.prepare('SELECT day,day_index,reward_json,claimed_at FROM daily_reward_claims WHERE address = ?1 ORDER BY claimed_at DESC LIMIT 14').bind(address).all(),
     env.DB.prepare('SELECT achievement_id,unlocked_at,claimed_at FROM achievements WHERE address = ?1 ORDER BY unlocked_at DESC').bind(address).all(),
     env.DB.prepare('SELECT g.id,g.name,g.slug,g.logo,gm.role FROM guild_members gm JOIN guilds g ON g.id=gm.guild_id WHERE gm.address=?1').bind(address).first(),
-    env.DB.prepare('SELECT state_json FROM weekly_missions WHERE address=?1 AND week=?2').bind(address, week).first()
+    env.DB.prepare('SELECT state_json FROM weekly_missions WHERE address=?1 AND week=?2').bind(address, week).first(),
+    env.DB.prepare('SELECT equipped_skin FROM player_profiles WHERE address=?1').bind(address).first()
   ]);
   const weeklyState = weekly ? JSON.parse(weekly.state_json) : { progress: {}, claimed: {} };
-  return { day, dayIndex: dailyIndex(day), dayRewards: DAY_REWARDS, week, dailyMissions: DAILY_MISSIONS, weeklyMissions: WEEKLY_MISSIONS.map(m => ({ id:m.id, label:m.label, target:m.target, reward:m.reward, progress:weeklyState.progress[m.id] || 0, claimed:!!weeklyState.claimed[m.id] })), season, seasonEnds: seasonEnds(), pass: { levels: PASS_LEVELS, xpPerLevel: PASS_XP_PER_LEVEL, progress: pass || { xp: 0, premium: 0 } }, economy: { gems: eco.gems, materials: eco.materials }, inventory: inv.results, dailyClaims: daily.results.map(r => ({ day:r.day, dayIndex:r.day_index, reward:JSON.parse(r.reward_json), claimedAt:r.claimed_at })), achievements: ach.results, guild: guild || null };
+  return { day, dayIndex: dailyIndex(day), dayRewards: DAY_REWARDS, week, dailyMissions: DAILY_MISSIONS, weeklyMissions: WEEKLY_MISSIONS.map(m => ({ id:m.id, label:m.label, target:m.target, reward:m.reward, progress:weeklyState.progress[m.id] || 0, claimed:!!weeklyState.claimed[m.id] })), season, seasonEnds: seasonEnds(), pass: { levels: PASS_LEVELS, xpPerLevel: PASS_XP_PER_LEVEL, progress: pass || { xp: 0, premium: 0 } }, economy: { gems: eco.gems, materials: eco.materials }, inventory: inv.results, equippedSkin: profile?.equipped_skin || null, dailyClaims: daily.results.map(r => ({ day:r.day, dayIndex:r.day_index, reward:JSON.parse(r.reward_json), claimedAt:r.claimed_at })), achievements: ach.results, guild: guild || null };
 }
 async function createGuild(env, address, body) {
   const existing = await env.DB.prepare('SELECT guild_id FROM guild_members WHERE address=?1').bind(address).first();
@@ -241,4 +258,4 @@ async function adminDashboard(env) {
   ]);
   return { players: players.n, battles24h: battles.n, guilds: guilds.n, guildMembers: guildMembers.n, tournamentEntries7d: tournamentEntries.n, evolvedCharacters: evolutions.n, battlePassXp: passXp.n, storeItemsGranted: sales.n, rewards: Object.fromEntries(claims.results.map(x => [x.status, x.n])), payments: { enabled: false, configured: false } };
 }
-export { claimDaily, claimPass, testPurchase, purchaseProduct, updateProfile, evolveCharacter, registerTournament, recordBattleProgress, claimMission, featureSnapshot, createGuild, inviteGuildMember, decideGuildInvite, guildChat, adminDashboard, seasonKey, dayKey, weekKey, grantItem, PASS_LEVELS, PASS_XP_PER_LEVEL };
+export { claimDaily, claimPass, testPurchase, purchaseProduct, useInventoryItem, updateProfile, evolveCharacter, registerTournament, recordBattleProgress, claimMission, featureSnapshot, createGuild, inviteGuildMember, decideGuildInvite, guildChat, adminDashboard, seasonKey, dayKey, weekKey, grantItem, PASS_LEVELS, PASS_XP_PER_LEVEL };

@@ -207,6 +207,7 @@ CREATE TABLE IF NOT EXISTS player_profiles (
   username TEXT UNIQUE,
   avatar TEXT NOT NULL DEFAULT 'neon-default',
   favorite_char TEXT,
+  equipped_skin TEXT,
   privacy_json TEXT NOT NULL DEFAULT '{}',
   updated_at INTEGER NOT NULL
 );
