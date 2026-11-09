@@ -81,7 +81,7 @@ async function crawl(viewport, label) {
   await page.waitForTimeout(400);
   const auto = await page.evaluate(() => window.NBI18n.lang);
   if (auto !== 'en') problems.push(`[${label}] détection auto : ${auto} au lieu de en`);
-  for (const v of ['accueil', 'galerie', 'classement', 'recompenses', 'admin', 'ajouter', 'profil', 'arene']) {
+  for (const v of ['accueil', 'galerie', 'classement', 'recompenses', 'admin', 'ajouter', 'profil', 'communaute', 'arene']) {
     await page.evaluate(v => { location.hash = v; }, v); await page.waitForTimeout(350); await scan(v);
   }
   // Galerie : fiche, recherche vide

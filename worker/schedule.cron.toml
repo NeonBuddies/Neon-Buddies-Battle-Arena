@@ -1,0 +1,18 @@
+# Déclencheur préparé pour la communauté V2. CE FICHIER N'EST PAS chargé par wrangler.toml.
+# Ne pas le fusionner ni déployer tant que :
+# 1. les correctifs V1 de la branche de publication ne sont pas mesurés sous les 10 ms CPU Cloudflare ;
+# 2. la migration worker/migrations/0002_community_v2.sql est appliquée volontairement ;
+# 3. V2_SCHEDULER est passé à "1" hors de ce dépôt.
+#
+# Offre gratuite (docs Cloudflare, novembre 2026) :
+# - 5 Cron Triggers par compte : https://developers.cloudflare.com/workers/platform/limits/
+# - 10 ms de CPU par exécution cron sur l'offre gratuite
+# - 100 000 requêtes Workers / jour
+# Le cron ne joue qu'un match de tournoi par passage (le handler scheduled appelle runScheduler).
+# Expression : toutes les 5 minutes. Un tableau de 8 (7 matchs) avance donc en ~35 minutes
+# après l'heure de départ, pas en temps réel massif.
+#
+# Pour l'activer plus tard, copier le bloc dans wrangler.toml puis déployer. Pas dans cette livraison.
+
+[triggers]
+crons = ["*/5 * * * *"]

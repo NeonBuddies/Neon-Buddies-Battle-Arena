@@ -571,7 +571,27 @@
     "En cas de bug ou d’abus manifeste, les résultats concernés peuvent être annulés.": "In case of a bug or obvious abuse, the affected results may be cancelled.",
     "Il appartient à chaque participant de vérifier que la réception d’un NFT est autorisée dans son pays. Réservé aux personnes majeures.": "Each participant must check that receiving an NFT is allowed in their country. Adults only.",
     "Contact : <a href=\"https://x.com/BusinessGry\" target=\"_blank\" rel=\"noopener\">X @BusinessGry</a> · Site : <a href=\"https://neon-buddies-2.netlify.app/\" target=\"_blank\" rel=\"noopener\">neon-buddies-2.netlify.app</a>": "Contact: <a href=\"https://x.com/BusinessGry\" target=\"_blank\" rel=\"noopener\">X @BusinessGry</a> · Website: <a href=\"https://neon-buddies-2.netlify.app/\" target=\"_blank\" rel=\"noopener\">neon-buddies-2.netlify.app</a>",
-    "Ce règlement est un modèle fourni avec le jeu ; il ne constitue pas un avis juridique.": "These rules are a template provided with the game; they do not constitute legal advice."
+    "Ce règlement est un modèle fourni avec le jeu ; il ne constitue pas un avis juridique.": "These rules are a template provided with the game; they do not constitute legal advice.",
+    "Communauté": "Community",
+    "Guildes, chat, amis, raids et tournoi de joueurs. Le serveur décide des points. Aucun NFT n’est envoyé depuis cet écran.": "Guilds, chat, friends, raids and a player tournament. The server decides the points. No NFT is sent from this screen.",
+    "Aperçu": "Overview",
+    "Guilde": "Guild",
+    "Chat": "Chat",
+    "Amis": "Friends",
+    "Raids": "Raids",
+    "Quêtes": "Quests",
+    "Tournoi live": "Live tournament",
+    "Classements": "Rankings",
+    "Serveur hors ligne : la communauté V2 n’est pas simulée dans ce navigateur.": "Server offline: community V2 is not simulated in this browser.",
+    "Connecte plus tard, quand le serveur répond. Les combats V1 restent dans l’arène.": "Connect later, when the server answers. V1 fights stay in the arena.",
+    "Connecte ton wallet et signe le message (aucune transaction) pour ouvrir la communauté.": "Connect your wallet and sign the message (no transaction) to open the community.",
+    "Cette fonction n’est pas encore disponible sur le serveur publié. Elle n’est pas simulée ici.": "This feature is not available on the published server yet. It is not simulated here.",
+    "Planificateur V2 inactif : les événements, les raids planifiés et le tournoi automatique restent en attente. Rien n’est simulé à la place.": "V2 scheduler inactive: events, scheduled raids and the automatic tournament stay pending. Nothing is simulated instead.",
+    "Le chat fonctionne par sondage toutes les 4 secondes. Le WebSocket n’est pas déployé : transport en attente.": "Chat works by polling every 4 seconds. WebSocket is not deployed: transport pending.",
+    "Les NFT V2 sont une éligibilité manuelle. Aucun envoi et aucune transaction (réclamations réelles désactivées).": "V2 NFTs are a manual eligibility. No send and no transaction (real claims disabled).",
+    "Le tournoi de l’arène est le mode V1 (fantômes et bots). Ici, le tournoi V2 inscrit des joueurs ; un BOT est étiqueté BOT.": "The arena tournament is V1 mode (ghosts and bots). Here, the V2 tournament signs up players; a BOT is labeled BOT.",
+    "Offre gratuite Workers + D1, prévue pour un faible trafic. La forte concurrence n’est pas garantie.": "Free Workers + D1 plan, meant for low traffic. High concurrency is not guaranteed.",
+    "Le roster de jeu n’est pas une preuve de propriété. Seul ownerOf confirme un NFT. L’import d’une image perso reste dans le navigateur : la mise en ligne est en attente, et aucun bouton de paiement n’est proposé.": "The game roster is not proof of ownership. Only ownerOf confirms an NFT. A custom image import stays in the browser: publishing it is pending, and no payment button is offered."
   };
   /*DICT-END*/
   var KEY = 'nb-lang';

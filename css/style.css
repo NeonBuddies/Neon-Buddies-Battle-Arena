@@ -494,6 +494,15 @@ select.input option { background: #12072a; }
 .lang-toggle button { background: transparent; color: #cbb8ff; border: 0; padding: 5px 9px; font: inherit; font-size: .75rem; font-weight: 700; cursor: pointer; }
 .lang-toggle button.active { background: linear-gradient(135deg, #ff2bd6, #8b5cff); color: #fff; }
 @media (max-width: 720px) { .bracket { font-size: .66rem; gap: 4px; } .lang-toggle button { padding: 4px 7px; } }
+
+/* Communauté V2 — mêmes couleurs, pas de nouveau thème */
+.v2-notes { margin: 0 0 12px; display: grid; gap: 6px; }
+.v2-notes p { margin: 0; padding: 8px 10px; border-radius: 10px; background: rgba(139,92,255,.12); border: 1px solid var(--line); }
+#v2-tabs { margin-bottom: 12px; }
+#v2-log { max-height: 320px; overflow: auto; }
+@media (max-width: 860px) {
+  #v2-tabs .chip { font-size: 12px; padding: 6px 8px; }
+}
 .result { overflow-y: auto; }
 .result-box { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
 .result-box .result-img { width: 96px; height: 96px; }

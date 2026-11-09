@@ -40,6 +40,9 @@ STOCK_LOW_THRESHOLD = "2"
 PVP_TIMEOUT_SEC = "18"
 BOSS_ATTEMPTS_PER_DAY = "3"
 TOURNAMENTS_PER_DAY = "1"
+# V2 : "0" tant que la migration 0002 n'est pas appliquée volontairement. Le code existe, il n'écrit pas le calendrier.
+# Ne pas ajouter de crons ici. Le déclencheur préparé est worker/schedule.cron.toml (non déployé).
+V2_SCHEDULER = "0"
 # URL prévue du Worker (non déployée / non vérifiée ici) :
 # https://neon-buddies-arena-api.neon-buddies-crypto-factory.workers.dev
 # REWARD_STOCK = '{"Common":[1,3,4],"Rare":[5],"Epic":[],"Legendary":[],"Special":[]}'
