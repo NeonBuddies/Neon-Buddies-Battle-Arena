@@ -960,7 +960,12 @@
       var labels = { characters: 'Character packs', skins: 'Skins', gems: 'Gems', nfts: 'NFTs', premium: 'Contenu premium' };
       var groups = {};
       shop.products.forEach(function (p) { (groups[p.category] || (groups[p.category] = [])).push(p); });
-      el.innerHTML = Object.keys(groups).map(function (cat) { return '<h4>' + labels[cat] + '</h4>' + groups[cat].map(function (p) { var price = p.priceEth ? esc(p.priceEth) + ' ETH' : (p.priceEur ? esc(String(p.priceEur)) + ' EUR' : 'Prix à définir'); return '<div class="rule"><span>' + esc(p.name) + '</span><b>' + price + '</b></div>'; }).join(''); }).join('') + '<p class="muted small">Checkout : ' + (shop.checkout ? 'actif' : 'désactivé') + ' · Réseau prévu : Robinhood Chain (' + shop.chainId + ')</p>';
+      var sess = W.getSession();
+      el.innerHTML = Object.keys(groups).map(function (cat) { return '<h4>' + labels[cat] + '</h4>' + groups[cat].map(function (p) {
+        var price = p.priceEth ? esc(p.priceEth) + ' ETH' : (p.priceEur ? esc(String(p.priceEur)) + ' EUR' : 'Prix à définir');
+        var action = p.purchasable && p.testOnly ? (sess ? '<button class="btn btn-small" data-test-order="' + esc(p.id) + '">🧪 Tester gratuitement</button>' : '<span class="muted small">Connecte ton wallet pour tester</span>') : '';
+        return '<div class="rule"><span>' + esc(p.name) + '</span><span><b>' + price + '</b> ' + action + '</span></div>';
+      }).join(''); }).join('') + '<p class="muted small">Checkout : ' + (shop.checkout ? 'actif' : 'désactivé') + ' · Réseau prévu : Robinhood Chain (' + shop.chainId + ')</p>';
     } catch (e) { el.innerHTML = '<p class="err-txt small">Catalogue indisponible.</p>'; }
   }
   async function renderPlatformFeatures() {
@@ -1166,6 +1171,13 @@
       if (mission) {
         mission.disabled = true;
         try { var mr = await W.api('/api/features/missions/claim', { method: 'POST', body: { missionId: mission.getAttribute('data-feature-mission') } }); toast(mr.claimed ? 'Récompense hebdomadaire ajoutée.' : 'Mission déjà réclamée.'); }
+        catch (err) { toast(errMsg(err)); }
+        renderRewards(); return;
+      }
+      var order = e.target.closest('[data-test-order]');
+      if (order) {
+        order.disabled = true;
+        try { var purchase = await W.api('/api/shop/test-order', { method: 'POST', body: { productId: order.getAttribute('data-test-order') } }); toast(purchase.alreadyOwned ? 'Produit déjà présent dans ton inventaire.' : 'Produit test ajouté à ton inventaire.'); }
         catch (err) { toast(errMsg(err)); }
         renderRewards(); return;
       }
