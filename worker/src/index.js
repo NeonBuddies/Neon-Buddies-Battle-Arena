@@ -862,8 +862,8 @@ async function route(req, env, ctx) {
   if (m === 'GET' && path === '/api/leaderboard') {
     await rateLimit(env, 'lb:' + ip, 60, 60);
     const elo = url.searchParams.get('type') === 'elo';
-    const rows = await env.DB.prepare('SELECT address, name, points, wins, losses, best_streak, rating, pvp_wins, pvp_losses FROM players WHERE ' + (elo ? '(pvp_wins + pvp_losses) > 0 ORDER BY rating DESC, pvp_wins DESC' : 'battles > 0 ORDER BY points DESC, wins DESC') + ', address LIMIT 50').all();
-    return { type: elo ? 'elo' : 'points', players: rows.results.map((r, i) => ({ rank: i + 1, founder: isFounder(env, r.address), address: r.address, name: r.name, points: r.points, wins: r.wins, losses: r.losses, bestStreak: r.best_streak, rating: r.rating, pvpWins: r.pvp_wins, pvpLosses: r.pvp_losses })) };
+    const rows = await env.DB.prepare('SELECT p.address, COALESCE(pp.username, p.name) AS name, COALESCE(pp.avatar, \'neon-default\') AS avatar, p.points, p.wins, p.losses, p.best_streak, p.rating, p.pvp_wins, p.pvp_losses FROM players p LEFT JOIN player_profiles pp ON pp.address = p.address WHERE ' + (elo ? '(p.pvp_wins + p.pvp_losses) > 0 ORDER BY p.rating DESC, p.pvp_wins DESC' : 'p.battles > 0 ORDER BY p.points DESC, p.wins DESC') + ', p.address LIMIT 50').all();
+    return { type: elo ? 'elo' : 'points', players: rows.results.map((r, i) => ({ rank: i + 1, founder: isFounder(env, r.address), address: r.address, name: r.name, avatar: r.avatar, points: r.points, wins: r.wins, losses: r.losses, bestStreak: r.best_streak, rating: r.rating, pvpWins: r.pvp_wins, pvpLosses: r.pvp_losses })) };
   }
 
   if (m === 'GET' && path === '/api/me') {

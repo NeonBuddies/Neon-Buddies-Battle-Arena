@@ -148,7 +148,7 @@
     openModal(
       '<div class="detail"><img class="detail-img" src="' + esc(ch.image) + '" alt="' + esc(ch.name) + '" translate="no">' +
       '<div><h3 id="modal-title" translate="no">' + esc(ch.name) + '</h3>' +
-      '<span class="rarity r-' + esc(ch.rarity) + '">' + esc(ch.rarity) + '</span>' + (ch.rank ? ' <span class="muted small">Rareté de jeu · rang ' + ch.rank + '/100</span>' : ' <span class="muted small">NFT ajouté (hors classement)</span>') +
+      '<span class="rarity r-' + esc(ch.rarity) + '">' + esc(ch.rarity) + '</span>' + (ch.rank ? ' <span class="muted small">Rareté de jeu · rang ' + ch.rank + '/100</span>' : ' <span class="muted small">Personnage importé</span>') +
       (ch.tokenId ? '<p class="small"><a href="' + esc(W.explorerToken(ch.tokenId)) + '" target="_blank" rel="noopener">Voir le token #' + ch.tokenId + ' sur Robinhood Chain ↗</a></p>' : '') +
       '<div class="traits">' + traits + '</div>' +
       '<p class="small"><b>Niveau ' + p.level + '</b> — ' + (p.xpNeeded ? p.xpInLevel + ' / ' + p.xpNeeded + ' XP' : 'niveau max') + '</p>' +
@@ -743,6 +743,14 @@
   /* ---------- Classement ---------- */
   function renderLeaderboard() {
     $('#lb-filters').innerHTML = chipsHTML(ui.lbFilter, false);
+    var playerBox = $('#main-players-lb');
+    if (playerBox) W.api('/api/leaderboard', { auth: false }).then(function (d) {
+      var me = W.getSession(), addr = me && me.address;
+      playerBox.innerHTML = d.players.length ? d.players.map(function (p) {
+        var av = ['neon-default', 'neon-cyan', 'neon-magenta', 'neon-gold', 'neon-violet'].indexOf(p.avatar) >= 0 ? p.avatar : 'neon-default';
+        return '<li class="' + (p.address === addr ? 'me' : '') + '"><span>' + p.rank + '</span><span class="player-who"><i class="player-avatar ' + av + '" aria-label="Photo de profil"></i><span class="pa" translate="no">' + esc(p.name || 'Joueur') + '</span></span><b>' + Number(p.points || 0).toLocaleString(L()) + ' pts</b></li>';
+      }).join('') : '<li class="muted">Aucun joueur classé pour l’instant.</li>';
+    }).catch(function () { if (playerBox) playerBox.innerHTML = '<li class="err-txt">Classement des joueurs indisponible.</li>'; });
     var rows = E.leaderboard(chars(), save);
     if (ui.lbFilter !== 'Toutes') rows = rows.filter(function (r) { return r.rarity === ui.lbFilter; });
     var medals = ['🥇', '🥈', '🥉'];
@@ -1311,7 +1319,7 @@
         openDetail(id, action === 'gallery'); return;
       }
       var lbRow = t.closest('#lb-body tr, .pod');
-      if (lbRow) { openDetail(lbRow.getAttribute('data-id')); return; }
+      if (lbRow) { openDetail(lbRow.getAttribute('data-id'), true); return; }
       var pick = t.closest('[data-pick]');
       if (pick) { openPicker(pick.getAttribute('data-pick')); return; }
       var rnd = t.closest('[data-random]');

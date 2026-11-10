@@ -449,6 +449,15 @@ select.input option { background: #12072a; }
 .players li.me { border: 1px solid var(--pink); }
 .players .pa { font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .players b { font-family: var(--mono); color: var(--pink2); }
+.player-who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.player-avatar { width: 28px; height: 28px; flex: 0 0 28px; display: inline-block; border-radius: 50%; border: 2px solid rgba(255,255,255,.65); box-shadow: 0 0 10px currentColor; background: radial-gradient(circle at 35% 30%, #fff 0 8%, currentColor 10% 35%, #12052a 70%); }
+.player-avatar.neon-default { color: #ff2bd6; }
+.player-avatar.neon-cyan { color: #20e6ff; }
+.player-avatar.neon-magenta { color: #ff4dcc; }
+.player-avatar.neon-gold { color: #ffd34e; }
+.player-avatar.neon-violet { color: #a97bff; }
+.player-ranking-panel { margin-bottom: 18px; }
+.section-label { margin: 18px 0 10px; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; font-size: 12px; }
 .rule { margin: 0 0 10px; font-size: 13.5px; }
 .rule .m-top { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
 .claims { display: grid; gap: 10px; margin-top: 12px; }
